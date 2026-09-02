@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr" data-app-theme="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0D1413">
+  <title>JM@Santé</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Figtree:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;600&family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Baloo+2:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&family=Red+Hat+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&family=Righteous&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Hanken+Grotesk:wght@600;700;800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- ── PWA / iOS : installation sur l'écran d'accueil ── -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0F6E56">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS : plein écran sans barre Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JM@Santé">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div style="flex:1">
+      <div class="kicker" id="h-date"></div>
+      <h1>Moniteur</h1>
+    </div>
+    <button class="iconbtn" data-a="tours" title="Tournées et archives">🗺️</button>
+    <button class="iconbtn" data-a="search" title="Recherche globale">🔍</button>
+    <button class="iconbtn" data-a="seq" title="Mode tournée séquentiell">▶</button>
+    <button class="iconbtn" data-a="new-rappel" title="Nouveau rappel">📌</button>
+    <button class="iconbtn" data-a="new-patient" title="Nouveau patient">＋</button>
+  <button id="save-badge" class="save-badge" title="Appuie pour exporter une sauvegarde" onclick="exportBackup()">💾</button>
+  </div>
+  <div class="filters" id="tourbar" style="margin:0 0 10px"></div>
+  <div class="slotbar" id="slotbar" style="display:none;gap:6px;margin:6px 0"></div>
+  <div class="synth" id="synth"></div>
+  <div class="filters" id="filters"></div>
+  <div id="prog" class="prog" style="display:none"></div>
+  <div class="board" id="board"></div>
+  <p class="footer-note">JM@Santé v34 — données enregistrées sur cet appareil (IndexedDB). Thème : 🗺️ → 🎨.<br>
+  <button class="small" style="color:var(--faint);text-decoration:underline" data-a="seed">Recharger la démo</button> ·
+  <button class="small" style="color:var(--faint);text-decoration:underline" data-a="wipe">Tout effacer</button></p>
+</div>
+
+<div id="seq-mode"></div>
+
+<div class="bottombar"><div class="in">
+  <button class="btn btn-primary" data-a="releve">📝 Éditer une relève</button>
+</div></div>
+
+<div class="veil" id="veil"><div class="sheet" id="sheet"></div></div>
+<input type="file" id="docfile"   accept="image/*,application/pdf" style="display:none">
+<input type="file" id="galleryfile" accept="image/*" style="display:none">
+<input type="file" id="camerafile"  accept="image/*" capture="environment" style="display:none">
+<input type="file" id="backupfile" style="display:none">
+<input type="file" id="syncfile" style="display:none">
+
+<div id="lock">
+  <div class="lock-logo">J<span>♥</span>S</div>
+  <h1 style="font-size:22px">JM@Santé</h1>
+  <p class="muted small" id="lockmsg">Saisis ton code pour déverrouiller</p>
+  <div class="dots" id="lockdots"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i></div>
+  <div class="pinpad" id="pinpad"></div>
+</div>
+<div id="toast"></div>
+<div id="sig-overlay">
+  <div class="sig-sheet">
+    <h3>✍️ Signature</h3>
+    <canvas id="sig-canvas" width="520" height="160"></canvas>
+    <div class="sig-row">
+      <button class="btn btn-ghost" id="sig-clear" style="flex:1">Effacer</button>
+      <button class="btn btn-ghost" id="sig-cancel" style="flex:1">Annuler</button>
+      <button class="btn btn-primary" id="sig-ok" style="flex:1">Valider ✓</button>
+    </div>
+  </div>
+</div>
+<button id="fab-endtour" data-a="endtour" title="Terminer la tournée">🏁</button>
+<button id="fab-dictate" data-a="quickdictate" title="Dictée rapide">🎤</button>
+<div id="print-area" style="display:none"></div>
+
+  <!-- Capacitor bridge (injecté par cap sync) -->
+  <script src="capacitor.js"></script>
+
+  <!-- Application (tous modules concaténés par build.js) -->
+  <script src="js/libs/jspdf.min.js"></script>
+  <script src="js/libs/pdfjs.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

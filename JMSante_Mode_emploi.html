@@ -1,0 +1,516 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JM@Santé — Mode d'emploi</title><style>
+:root{
+  --t=teal; --accent:#0F6E56; --accent2:#1D9E75; --ink:#1a2420; --mut:#5f6b66;
+  --line:#d8e3df; --bg:#f6faf8; --card:#fff; --soft:#e8f5f1; --amber:#b35c00; --amber-bg:#fbf0dd;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:'Segoe UI',system-ui,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;font-size:16px}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(135deg,#0F6E56,#04342C);color:#fff;padding:44px 0 38px;text-align:center}
+header .logo{font-size:40px;font-weight:800;letter-spacing:-1px;margin:0}
+header .logo .at{color:#7fe0c6}
+header .sub{opacity:.85;font-size:16px;margin-top:6px;letter-spacing:2px;text-transform:uppercase;font-size:13px}
+header .ver{margin-top:14px;display:inline-block;background:rgba(255,255,255,.15);padding:4px 14px;border-radius:20px;font-size:13px}
+nav{position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);z-index:10;padding:10px 0}
+nav .wrap{display:flex;flex-wrap:wrap;gap:6px}
+nav a{font-size:13px;color:var(--accent);text-decoration:none;padding:5px 11px;border-radius:16px;border:1px solid var(--line);white-space:nowrap}
+nav a:hover{background:var(--soft)}
+section{padding:34px 0;border-bottom:1px solid var(--line)}
+h2{font-size:26px;color:var(--accent);margin:0 0 4px;display:flex;align-items:center;gap:10px}
+h2 .n{background:var(--accent);color:#fff;width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+h3{font-size:19px;color:#0a5343;margin:26px 0 8px}
+p{margin:8px 0}
+.lead{font-size:17px;color:var(--mut)}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:5px 0}
+.tip{background:var(--soft);border-left:4px solid var(--accent2);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0}
+.warn{background:var(--amber-bg);border-left:4px solid var(--amber);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;color:#6b3d08}
+.warn b,.tip b{color:inherit}
+kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 8px;font-family:inherit;font-size:14px;white-space:nowrap}
+.phone{width:280px;margin:18px auto;background:#04100a;border-radius:26px;padding:12px 10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.phone .screen{background:var(--bg);border-radius:16px;overflow:hidden;min-height:120px}
+.figrow{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.cap{font-size:13px;color:var(--mut);text-align:center;margin-top:6px;max-width:280px}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps li{counter-increment:s;position:relative;padding:10px 0 10px 44px;border-bottom:1px dashed var(--line)}
+.steps li::before{content:counter(s);position:absolute;left:0;top:8px;background:var(--accent2);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.pill{display:inline-block;background:var(--soft);color:var(--accent);border-radius:14px;padding:2px 10px;font-size:14px;font-weight:600;margin:0 2px}
+.ico{display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:#1a2420;border-radius:8px;font-size:16px;vertical-align:middle;margin-right:4px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th{background:var(--accent);color:#fff;text-align:left;padding:9px 12px;font-weight:600}
+td{border:1px solid var(--line);padding:8px 12px;vertical-align:top}
+tr:nth-child(even) td{background:#fbfdfc}
+.mock{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;font-size:13px;max-width:300px;margin:14px auto}
+.mock .hd{font-weight:700;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px}
+.mock .row{padding:4px 0;display:flex;gap:6px;align-items:flex-start}
+.mock .chip{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:3px 10px;font-size:12px;margin:2px}
+.mock .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
+@media print{nav{display:none}header{background:#0F6E56 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid}}
+</style></head><body>
+<header><div class="wrap">
+<p class="logo">JM<span class="at">@</span>Santé</p>
+<p class="sub">Logiciel de relève pour IDEL</p>
+<p style="font-style:italic;opacity:.8;font-size:14px;margin-top:2px">« Tout est dans la cigale »</p>
+<span class="ver">Mode d'emploi complet · version 37</span>
+</div></header>
+<nav><div class="wrap"><a href="#intro">Intro</a><a href="#demarrage">1. Premiers pas</a><a href="#moniteur">2. L'écran principal — le Moniteur</a><a href="#tournees">3. Créer et organiser les tournées</a><a href="#patient">4. Le dossier patient</a><a href="#passage">5. Saisir un passage</a><a href="#creneaux">6. Les créneaux Matin / Soir</a><a href="#outils-rapides">7. Dictée rapide et déroulé de tournée</a><a href="#rappels">8. Bilans et rappels</a><a href="#releve">9. Générer et envoyer la relève</a><a href="#securite">10. Sécurité et sauvegarde</a><a href="#synchro">11. 🔄 Partage & synchronisation entre collègues</a><a href="#installer">12. 📲 Installer l'app (iPhone, Android, PC)</a><a href="#windows">13. La version Windows</a><a href="#astuces">14. Astuces & résumé des gestes</a></div></nav>
+<section id="intro"><div class="wrap"><h2><span class="n">ℹ️</span>Qu'est-ce que JM@Santé ?</h2>
+<p class="lead">JM@Santé est ton carnet de relève infirmière. Tu y notes tes passages au fil de la tournée — soins réalisés, constantes, transmissions, photos de plaies — et l'application rédige pour toi la relève complète à transmettre au collègue ou au médecin, en un geste.</p>
+<div class="tip"><b>La philosophie :</b> saisie ultra-rapide sur le terrain, relève propre et professionnelle en sortie. Tout reste sur ton téléphone, rien ne part sur internet.</div>
+<h3>Ce que tu peux faire</h3>
+<ul>
+<li>Gérer plusieurs <b>tournées</b> (un cabinet = une tournée) avec leur ordre de passage</li>
+<li>Saisir chaque passage : soins cochés, constantes, transmission dictée ou tapée, photos</li>
+<li>Distinguer les passages <b>matin et soir</b> pour un même patient</li>
+<li>Suivre les <b>bilans, RDV et rappels</b> avec compte à rebours</li>
+<li>Générer et <b>envoyer la relève</b> (texte, PDF, HTML ou Word) avec les documents joints</li>
+<li>Protéger l'accès par <b>code PIN et empreinte</b>, données chiffrées</li>
+<li>Travailler aussi sur <b>PC Windows</b> et synchroniser par sauvegarde</li>
+</ul>
+</div></section>
+<section id="demarrage"><div class="wrap"><h2><span class="n">1</span>Premiers pas</h2>
+<p>Au tout premier lancement, un écran de bienvenue te propose deux chemins :</p>
+<div class="figrow">
+  <div>
+    <div class="mock">
+      <div class="hd">👋 Bienvenue dans JM@Santé</div>
+      <div class="row">Ton carnet de relève infirmière.</div>
+      <div style="margin-top:8px"><span class="chip on" style="display:block;text-align:center;padding:8px">Découvrir avec la démo</span>
+      <span class="chip" style="display:block;text-align:center;padding:8px;margin-top:6px">Commencer avec mes patients</span></div>
+    </div>
+    <div class="cap">L'écran d'accueil au premier lancement</div>
+  </div>
+</div>
+<ul>
+<li><b>Découvrir avec la démo</b> — des patients fictifs sont chargés pour explorer l'app sans risque. Tu pourras les effacer plus tard.</li>
+<li><b>Commencer avec mes propres patients</b> — l'app démarre vide, avec une tournée « Ma tournée » prête à remplir.</li>
+</ul>
+<div class="tip">Tu peux à tout moment recharger la démo ou tout effacer depuis <span class="pill">🗺️ Réglages</span>.</div>
+</div></section>
+<section id="moniteur"><div class="wrap"><h2><span class="n">2</span>L'écran principal — le Moniteur</h2>
+<p>C'est ton tableau de bord. En haut, le titre <b>Moniteur</b> et une rangée de boutons d'action :</p>
+<table>
+<tr><th>Bouton</th><th>Rôle</th></tr>
+<tr><td><span class="ico">🦗</span> Réglages</td><td>Le bouton <b>cigale</b> — tournées, réglages, catalogue, sauvegardes, partage. (Le 🗺️ reste à l'intérieur devant la gestion des cabinets.)</td></tr>
+<tr><td><span class="ico">🔍</span> Recherche</td><td>Retrouver un patient, un soin, une note ou un rappel dans toutes les données</td></tr>
+<tr><td><span class="ico">▶️</span> Déroulé</td><td>Lancer la tournée guidée patient par patient (mode séquentiel)</td></tr>
+<tr><td><span class="ico">📌</span> Rappels</td><td>Voir et créer les rappels (ordonnances, RDV, bilans…)</td></tr>
+<tr><td><span class="ico">➕</span> Patient</td><td>Créer un nouveau dossier patient</td></tr>
+<tr><td><span class="ico">💾</span> Relève</td><td>Générer et envoyer la relève de la tournée</td></tr>
+</table>
+<p>En dessous, la <b>liste des patients</b> de la tournée courante, dans l'ordre de passage. Chaque carte montre le nom, l'âge, l'état du jour (vu / pas encore vu) et d'éventuelles pastilles d'alerte ou de priorité.</p>
+<div class="figrow">
+  <div>
+    <div class="mock">
+      <div class="hd">🗓️ LUNDI 31 AOÛT</div>
+      <div class="row"><span style="width:10px;height:10px;border-radius:50%;background:#ccc;display:inline-block;margin-top:5px"></span> <div><b>MARTIN Yvonne</b> <span style="color:#888">87 ans</span><br><span style="color:#888;font-size:12px">Pas encore vu</span></div></div>
+      <div class="row"><span style="width:10px;height:10px;border-radius:50%;background:#1D9E75;display:inline-block;margin-top:5px"></span> <div><b>DUPONT Paul</b> <span style="color:#888">68 ans</span> <span class="chip on" style="font-size:11px">🔴 Prioritaire</span><br><span style="color:#888;font-size:12px">Vu aujourd'hui · Toilette</span></div></div>
+    </div>
+    <div class="cap">Le Moniteur : patients dans l'ordre de passage, état du jour visible d'un coup d'œil</div>
+  </div>
+</div>
+<div class="tip">Un gros bouton <span class="pill">🎤 micro</span> flotte en bas à droite : c'est la <b>dictée rapide</b> (voir §7).</div>
+</div></section>
+<section id="tournees"><div class="wrap"><h2><span class="n">3</span>Créer et organiser les tournées</h2>
+<p>Tape <span class="pill">🗺️</span> pour ouvrir la gestion des tournées. Une tournée correspond en général à un cabinet ou un secteur.</p>
+<h3>Créer une tournée</h3>
+<ol class="steps">
+<li>Tape <span class="pill">🗺️</span> puis saisis un nom (ex. « Cabinet Durand ») et valide avec ＋</li>
+<li>Crée tes patients avec le bouton <span class="pill">➕</span> du Moniteur</li>
+<li>Affecte-les à la tournée et règle leur ordre de passage avec le bouton <span class="pill">👥</span></li>
+</ol>
+<h3>L'ordre de passage</h3>
+<p>Dans l'écran <span class="pill">👥</span> d'une tournée :</p>
+<ul>
+<li>La <b>case ✓</b> à gauche affecte ou retire un patient de la tournée</li>
+<li>Le filtre <b>« 👁️ Seulement les patients de la tournée »</b> masque les autres pour y voir clair</li>
+<li>Pour <b>déplacer</b> un patient : tape sa poignée <b>☰</b> (il se surligne), puis tape la ligne où le placer. Ou utilise les flèches <kbd>↑</kbd> <kbd>↓</kbd> pour un ajustement fin.</li>
+</ul>
+<div class="tip"><b>Rattachement au cabinet :</b> un patient rattaché à un cabinet (depuis sa fiche) reste <b>visible dans l'écran 👥 même s'il est décoché</b> de la tournée du moment — hospitalisation, absence, ou décochage par erreur. La mention « rattaché au cabinet · hors tournée » l'indique, et tu le recoches en un tap sans aller le chercher ailleurs.</div>
+
+<div class="warn"><b>Attention :</b> retirer un patient d'une tournée ne supprime pas son dossier — il reste dans tes données. L'app demande confirmation avant tout retrait.</div>
+
+<h3>Ordre et composition Matin / Soir (si les créneaux sont activés)</h3>
+<p>Si tu as activé les créneaux (voir §6), l'écran <span class="pill">👥</span> affiche un sélecteur <span class="pill">☀️ Matin</span> <span class="pill">🌙 Soir</span> en haut. <b>Chaque créneau a sa propre liste de patients et son propre ordre</b> — pratique quand la tournée du soir n'est ni la même composition ni le même trajet que celle du matin.</p>
+<div class="figrow">
+  <div>
+    <div class="mock">
+      <div class="hd">👥 Patients — Cabinet A</div>
+      <div class="row"><span class="chip on">☀️ Matin</span><span class="chip">🌙 Soir</span></div>
+      <div class="row" style="font-size:11px;color:#888">Compose et ordonne le passage du matin — indépendant de l'autre créneau.</div>
+      <div class="row">☰ ✓ <b>MARTIN Yvonne</b></div>
+      <div class="row">☰ ✓ <b>DUPONT Paul</b></div>
+      <div class="row">☰ ✓ <b>BERNARD Lucie</b></div>
+    </div>
+    <div class="cap">Le matin : 3 patients dans leur ordre</div>
+  </div>
+  <div>
+    <div class="mock">
+      <div class="hd">👥 Patients — Cabinet A</div>
+      <div class="row"><span class="chip">☀️ Matin</span><span class="chip on">🌙 Soir</span></div>
+      <div class="row" style="font-size:11px;color:#888">Compose et ordonne le passage du soir — indépendant.</div>
+      <div class="row">☰ ✓ <b>DUBOIS Marc</b></div>
+      <div class="row">☰ ✓ <b>MARTIN Yvonne</b></div>
+    </div>
+    <div class="cap">Le soir : composition et ordre différents</div>
+  </div>
+</div>
+<ol class="steps">
+<li>Tape <span class="pill">☀️ Matin</span>, coche les patients du matin et règle leur ordre avec ☰</li>
+<li>Tape <span class="pill">🌙 Soir</span>, fais de même pour le soir (les mêmes ou d'autres patients)</li>
+<li>Enregistre — chaque créneau garde sa configuration</li>
+</ol>
+<div class="tip">Un patient présent dans au moins un créneau appartient à la tournée. Un patient peut être <b>uniquement le soir</b>.</div>
+</div></section>
+<section id="patient"><div class="wrap"><h2><span class="n">4</span>Le dossier patient</h2>
+<p>Tape le bouton <span class="pill">➕</span> pour créer un patient : nom, prénom, date de naissance, sexe, contexte médical (ex. « HTA, diabète »), adresse et contacts.</p>
+<h3>Le plan de soins</h3>
+<p>Coche les soins habituels du patient : ils te seront proposés à chaque passage. Tu peux en ajouter à la volée avec <b>＋ autre…</b>.</p>
+<h3>Les outils du dossier</h3>
+<table>
+<tr><th>Outil</th><th>Usage</th></tr>
+<tr><td>📎 Documents</td><td>Photos de plaies, ordonnances, bilans PDF. Stockés chiffrés, jamais dans la galerie du téléphone.</td></tr>
+<tr><td>🧪 Bilans / RDV</td><td>Prise de sang, consultation… avec date et statut. Crée automatiquement un rappel.</td></tr>
+<tr><td>📌 Rappels</td><td>Ordonnance à renouveler, RDV… avec compte à rebours J-3 → Jour J.</td></tr>
+<tr><td>🕑 Historique</td><td>Tous les passages passés du patient.</td></tr>
+<tr><td>📈 Courbes</td><td>Évolution des constantes (TA, glycémie…).</td></tr>
+</table>
+</div></section>
+<section id="passage"><div class="wrap"><h2><span class="n">5</span>Saisir un passage</h2>
+<p>Tape la carte d'un patient pour ouvrir son formulaire de passage.</p>
+<ol class="steps">
+<li><b>Coche les soins</b> réalisés dans le plan de soins</li>
+<li>Renseigne les <b>constantes</b> : la dernière valeur connue s'affiche en gris pour comparer</li>
+<li>Rédige la <b>transmission</b> : tape, dicte 🎤, ou insère une <b>phrase type</b></li>
+<li>Ajoute éventuellement des <b>tags de priorité</b> (👁️ à surveiller, 🔴 prioritaire…)</li>
+<li>Tape <b>✓ Valider le passage</b></li>
+</ol>
+<h3>Les phrases types</h3>
+<p>Tape <span class="pill">💬 Phrases types…</span> pour ouvrir un catalogue de formulations professionnelles classé par thèmes cliniques : État général, Plaies, Douleur, Diabète/Injections, <b>Perfusions & abords veineux</b> (PICC/CIP, aiguille de Huber…), <b>Prélèvements/Biologie</b> (ECBU, capital veineux…), Respiratoire, Élimination, Coordination… Tape une catégorie puis une phrase pour l'insérer.</p>
+<div class="tip"><b>Personnalisable :</b> tu peux ajouter tes propres phrases et catégories, et modifier celles existantes par un <b>appui long</b>.</div>
+<h3>📊 Les constantes : enregistrées toujours, transmises au choix</h3>
+<p>Tes constantes sont <b>systématiquement enregistrées</b> dans l'historique du patient — utile en cas d'urgence, pour le médecin, ou pour suivre une évolution. Mais elles n'encombrent la relève que si tu le décides.</p>
+<div class="mock">
+  <div class="hd">Constantes (si mesurées)</div>
+  <div class="row" style="font-size:12px">TA 14/8 · T° 36.8 · Sat 97%</div>
+  <div class="row"><span class="chip on">📤 Inclure dans la relève</span></div>
+</div>
+<div class="tip"><b>Pourquoi ce choix ?</b> Une valeur « anormale » sur le papier peut être l'état habituel d'un patient. C'est ton jugement clinique qui décide de ce qui mérite d'être transmis — l'app ne décide pas à ta place.</div>
+
+<h3>📋 Le mode DARD</h3>
+<p>Le bouton <span class="pill">📋 Mode DARD</span> découpe ta transmission en quatre champs guidés : <b>D</b>onnées, <b>A</b>ctions, <b>R</b>ésultats, <b>D</b>evenir.</p>
+<p>Quand tu l'utilises, ce passage est <b>marqué</b> : dans la relève, il apparaît en <b>bloc structuré mis en évidence</b>, daté et situé, tandis que les autres patients gardent la présentation normale. À réserver aux situations qui le méritent : chute, aggravation, incident.</p>
+<div class="mock">
+  <div class="hd">📋 2 sept. 🌙 soir — Transmission structurée (DAR)</div>
+  <div class="row" style="font-size:12px;display:block;line-height:1.7">
+    D : chute constatée au lever<br>A : bilan lésionnel, médecin appelé<br>R : pas de fracture<br>Devenir : surveillance 48 h
+  </div>
+</div>
+<h3>Commenter un soin précis</h3>
+<p>Tu peux attacher un commentaire du jour à un soin particulier — utile pour décrire une plaie, préciser un pilulier, etc.</p>
+<ol class="steps">
+<li>Coche le soin — un petit <b>✏️</b> apparaît dessus</li>
+<li><b>Appui long</b> sur le soin (ou tape le ✏️) → un champ de commentaire s'ouvre</li>
+<li>Tape ton commentaire, ou tape le bouton <b>💬</b> pour insérer une <b>phrase type</b></li>
+<li>Valide avec ✓</li>
+</ol>
+<div class="figrow">
+  <div>
+    <div class="mock">
+      <div class="hd">Soins réalisés</div>
+      <div class="row"><span class="chip on">Pansement plaie ✏️</span><span class="chip on">Préparer pilulier ✏️</span></div>
+      <div class="row" style="background:#f4faf9;border:1px dashed #b7d4cc;border-radius:8px;padding:8px;margin-top:4px;display:block">
+        <div style="font-size:11px;color:#888">💬 Commentaire — Pansement plaie</div>
+        <div style="display:flex;gap:6px;margin-top:4px"><span style="flex:1;border:1px solid #ddd;border-radius:6px;padding:3px 6px;font-size:12px">Plaie sacrum, bourgeonnement…</span><span class="chip">💬</span><span class="chip on">✓</span></div>
+      </div>
+    </div>
+    <div class="cap">Le commentaire de soin, avec accès aux phrases types (💬)</div>
+  </div>
+</div>
+<p>Dans la relève : « ✅ Soins : <b>Pansement plaie <i>(Plaie sacrum, bourgeonnement, exsudat modéré)</i></b>, Préparer pilulier <i>(préparé 7 jours)</i> ».</p>
+<div class="tip">Le bouton <b>💬</b> ouvre le même catalogue de phrases que la transmission générale — tu peux donc réutiliser tes formulations habituelles dans un commentaire de soin.</div>
+</div></section>
+<section id="creneaux"><div class="wrap"><h2><span class="n">6</span>Les créneaux Matin / Soir</h2>
+<p>Si tu passes deux fois par jour chez certains patients (ex. toilette le matin, perfusion le soir), active cette option.</p>
+<ol class="steps">
+<li>Va dans <span class="pill">🗺️ Réglages</span> → section <b>☀️🌙 Créneaux</b></li>
+<li>Tape <b>« Activer les créneaux Matin/Soir »</b></li>
+</ol>
+<p>Un sélecteur <span class="pill">☀️ Matin</span> <span class="pill">🌙 Soir</span> apparaît alors en haut de chaque formulaire de passage. Il s'ouvre par défaut sur le bon créneau selon l'heure. Ce que tu coches est attribué au créneau sélectionné — bascule pour saisir l'autre passage.</p>
+<div class="mock">
+  <div class="hd">MARTIN Yvonne</div>
+  <div class="row"><span class="chip on">☀️ Matin</span><span class="chip">🌙 Soir</span></div>
+  <div class="row" style="font-size:12px;color:#888">Ce que tu coches est attribué au passage du matin.</div>
+</div>
+<p>Dans la relève, le patient reste sur <b>un seul bloc</b>, avec ses deux passages distingués : ☀️ Matin — … / 🌙 Soir — …</p>
+<h3>Basculer entre matin et soir</h3>
+<p>Une fois les créneaux activés, un <b>bandeau ☀️ Matin / 🌙 Soir</b> apparaît sur le Moniteur, sous les tournées. Il s'ouvre par défaut sur le bon créneau selon l'heure et tu bascules d'un tap.</p>
+<div class="mock">
+  <div class="hd">Cabinet A</div>
+  <div class="row"><span class="chip">☀️ Matin</span><span class="chip on">🌙 Soir</span> <span style="font-size:11px;color:#888;align-self:center">← il est 15h, l'app propose le soir</span></div>
+</div>
+<p>Le <b>déroulé ▶️</b> et la <b>feuille de route</b> suivent le créneau affiché : après 14h, tu relances ▶️ et l'app te déroule la tournée <b>du soir</b>, avec ses patients dans l'ordre du soir.</p>
+<div class="tip">Tu peux forcer manuellement l'un ou l'autre créneau (jour de garde, passage décalé) en tapant le bandeau.</div>
+</div></section>
+<section id="outils-rapides"><div class="wrap"><h2><span class="n">7</span>Dictée rapide et déroulé de tournée</h2>
+<h3>🎤 Dictée rapide (bouton flottant)</h3>
+<p>Le gros bouton micro en bas à droite est fait pour la voiture, entre deux visites : tape-le, dicte ta note, puis tape le patient concerné. La note atterrit dans son dossier en un geste.</p>
+<h3>▶️ Le déroulé de tournée</h3>
+<p>Le bouton <span class="pill">▶️</span> lance la tournée guidée : les patients défilent un par un dans l'ordre de passage. Tu remplis chaque passage et tu avances avec <kbd>→</kbd>.</p>
+<div class="tip"><b>Chaque passage est enregistré automatiquement</b> quand tu passes au suivant — inutile de valider séparément.</div>
+<h3>La dictée hors-ligne</h3>
+<p>La dictée fonctionne <b>sans connexion</b> si le pack vocal français est installé sur ton téléphone : <i>Réglages Android → Google → Saisie vocale → Reconnaissance hors connexion → Français</i>.</p>
+<h3>🚫 Pas de passage prévu aujourd'hui</h3>
+<p>Certains patients ne se voient qu'un jour sur deux ou trois. Dans le déroulé, un bouton <b>« 🚫 Pas de passage prévu aujourd'hui »</b> en haut de chaque patient permet de <b>passer au suivant sans rien enregistrer</b> — le patient n'apparaîtra donc pas dans la relève du jour.</p>
+<div class="warn"><b>À ne pas confondre avec une absence.</b> « Pas de passage prévu » = ce n'est simplement pas ton jour, rien à signaler. Une <b>absence</b> (patient parti, hospitalisé, non présent alors qu'il devait l'être) est un <b>vrai événement</b> : elle doit être enregistrée et figurer dans la relève.</div>
+
+<h3>📋 / 📑 Affichage compact du Moniteur</h3>
+<p>En bout de la barre de filtres, un bouton bascule entre <b>Détaillé</b> et <b>Compact</b>. En mode compact, seuls le nom, le statut et les alertes rouges restent visibles — pratique sur les grosses tournées. Le réglage est mémorisé.</p>
+
+<h3>🏁 Terminer la tournée</h3>
+<p>Le bouton flottant <b>🏁</b> (au-dessus du micro) clôt ta tournée : il demande confirmation (en précisant le créneau matin ou soir si activé) et affiche un petit message de fin. Un geste symbolique pour marquer la fin de ta journée de soins.</p>
+</div></section>
+<section id="rappels"><div class="wrap"><h2><span class="n">8</span>Bilans et rappels</h2>
+<p>Les rappels t'évitent d'oublier une ordonnance à renouveler, un RDV ou un bilan.</p>
+<ul>
+<li>Créer un rappel : bouton <span class="pill">📌</span> du Moniteur, ou depuis un dossier patient</li>
+<li>Chaque rappel affiche un <b>compte à rebours</b> : dormant → J-3 → J-2 → J-1 → <b>Jour J</b> → dépassé</li>
+<li>Sur Android, une <b>notification</b> se déclenche à J-3, J-1 et le jour même</li>
+</ul>
+
+<h3>Les catégories de rappels</h3>
+<p>Le rappel se construit en deux temps, pour rester précis sans perdre de temps.</p>
+<ol class="steps">
+<li>Choisis une <b>catégorie</b> dans la liste</li>
+<li>Des <b>précisions</b> apparaissent dessous — tape celle qui convient, elle remplit le détail</li>
+<li><b>Complète librement</b> dans le champ ✏️ Détail (ou dicte 🎤)</li>
+</ol>
+<table>
+<tr><th>Catégorie</th><th>Précisions proposées</th></tr>
+<tr><td>💉 <b>Soin ponctuel</b></td><td>Pansement lourd · Injection spécifique · Ablation fils/agrafes · Renouvellement sonde · Réfection PICC/CIP</td></tr>
+<tr><td>🧪 <b>Bilan / Prélèvement</b></td><td>Prise de sang à jeun · ECBU · Frottis · Test COVID/grippe · Dépôt au laboratoire · Résultats à récupérer</td></tr>
+<tr><td>📦 <b>Pharmacie &amp; Matériel</b></td><td>Commande pilulier · Récupérer ordonnance · Récupérer matériel · Livraison HAD/prestataire · Rupture de stock pansements</td></tr>
+<tr><td>📋 <b>Ordonnance &amp; Médecin</b></td><td>Renouvellement ordonnance · Appel médecin traitant · Compte-rendu à transmettre · Demande d'avis / réévaluation</td></tr>
+<tr><td>🗓️ <b>RDV &amp; Transport</b></td><td>Consultation spécialiste · Séance kiné · VSL/ambulance · Hospitalisation · Retour d'hospitalisation</td></tr>
+<tr><td>🚪 <b>Absence patient</b></td><td>Départ en famille · Séjour de répit · Non présent ponctuellement · Hospitalisé</td></tr>
+<tr><td>📌 <b>Autre / Divers</b></td><td>Code porte changé · Consigne famille · Matériel à rapporter</td></tr>
+</table>
+<div class="mock">
+  <div class="hd">📌 Nouveau rappel</div>
+  <div class="row small">Catégorie : 💉 Soin ponctuel</div>
+  <div class="row"><span class="chip on">Pansement lourd</span><span class="chip">Injection spécifique</span></div>
+  <div class="row" style="margin-top:6px;border:1px solid #ddd;border-radius:8px;padding:6px;font-size:12px">✏️ Pansement lourd — sacrum, à refaire vendredi</div>
+</div>
+<div class="tip"><b>Synchronisation bilans ↔ rappels :</b> quand tu crées un bilan « À faire » daté, son rappel est créé automatiquement. Le passer à « Fait » clôt le rappel.</div>
+</div></section>
+<section id="releve"><div class="wrap"><h2><span class="n">9</span>Générer et envoyer la relève</h2>
+<p>Tape <span class="pill">📝 Éditer une relève</span> pour générer la relève. Un aperçu s'affiche, patient par patient.</p>
+
+<h3>Le principe : complète sans être bavarde</h3>
+<div class="tip"><b>Ce qui est routinier se dit une fois. Ce qui sort de l'ordinaire est daté, situé et mis en évidence.</b> Sur une semaine de passages matin et soir, un patient sans particularité tient en une ligne.</div>
+<p>Concrètement, sur toute la période demandée :</p>
+<ul>
+<li>Si le plan de soins a été suivi → <b>une seule mention</b> « ✅ Plan de soins respecté »</li>
+<li>Un soin que tu as <b>commenté</b> → ligne 💬 dédiée, avec la date et le créneau</li>
+<li>Un soin <b>non prévu au plan</b> → ligne ➕</li>
+<li>Tes <b>transmissions</b> → ligne 📝 datée</li>
+<li>Les <b>constantes</b> → seulement celles que tu as cochées « 📤 Inclure »</li>
+</ul>
+<div class="mock">
+  <div class="hd">👤 MARTIN Yvonne</div>
+  <div class="row" style="font-size:12px;display:block;line-height:1.8">
+    ✅ Plan de soins respecté<br>
+    💬 2 sept. ☀️ matin — Changement protection : rougeur au siège<br>
+    ➕ 4 sept. 🌙 soir — Soins supplémentaires : Pansement
+  </div>
+</div>
+
+<h3>Les quatre présentations</h3>
+<table>
+<tr><th>Mode</th><th>Pour quoi</th></tr>
+<tr><td><b>Narrative</b></td><td>Le format courant : une synthèse par patient, fluide à lire.</td></tr>
+<tr><td><b>Structurée</b></td><td>Sections [ SOINS ] [ ÉVÉNEMENTS ] [ CONSTANTES ] [ BILANS ] [ TRANSMISSIONS ] — synthétisées sur la période, sans répéter chaque passage.</td></tr>
+<tr><td><b>RÀS rapide</b></td><td>Une ligne par patient. Idéal pour un message court.</td></tr>
+<tr><td><b>🩺 Synthèse ciblée</b></td><td>Un document sur mesure — voir ci-dessous.</td></tr>
+</table>
+
+<h3>🩺 La synthèse ciblée</h3>
+<p>Pour transmettre à un <b>médecin</b>, un spécialiste ou un service. Un médecin ne suit pas tous tes patients : ce mode te fait composer exactement le document à envoyer.</p>
+<ol class="steps">
+<li>Choisis le mode <b>🩺 Synthèse ciblée</b> puis <b>Générer</b></li>
+<li><b>Coche les patients</b> concernés (seuls ceux-là figureront dans le document)</li>
+<li><b>Coche les données</b> à inclure : ✅ Soins · 💬 Événements · 📊 Constantes · 📝 Transmissions · 🧪 Bilans/RDV · 📌 Rappels & ordonnances · 🕑 Historique complet</li>
+<li>Génère</li>
+</ol>
+<div class="warn"><b>Confidentialité :</b> seuls les patients cochés apparaissent. C'est ce qui permet d'écrire à un médecin sans lui transmettre les données de patients qui ne le concernent pas.</div>
+
+<h3>✍️ Signature et 💬 message de fin</h3>
+<p>Dans l'aperçu, deux boutons enrichissent le document :</p>
+<ul>
+<li><b>✍️ Signer</b> — ta signature manuscrite apparaît en bas du PDF, du HTML et du Word, avec ton nom</li>
+<li><b>💬 Message</b> — un mot libre (dictée possible) présenté dans un <b>encart</b> en fin de relève, avec ton nom et l'heure</li>
+</ul>
+<div class="mock" style="border-left:4px solid #0F6E56;border-radius:0">
+  <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#0F6E56;font-weight:700;margin-bottom:6px">💬 Message de l'infirmier</div>
+  <div style="font-size:12.5px;line-height:1.5">Penser aux compresses chez Mme X. Portail du 12 en panne, passer par le jardin.</div>
+  <div style="font-size:11px;color:#6b7a75;margin-top:7px">Jean-Marie D. — 2 sept. à 20h44</div>
+</div>
+<p class="cap" style="max-width:none">Les deux repartent à zéro à chaque nouvelle relève : pas de risque d'envoyer le mot de la veille.</p>
+
+<h3>Choisir le format</h3>
+<table>
+<tr><th>Format</th><th>Pour qui / quoi</th></tr>
+<tr><td>🗒️ Texte</td><td>Simple, léger — SMS, messagerie</td></tr>
+<tr><td>📑 PDF</td><td>Document propre, photos intégrées — le plus universel</td></tr>
+<tr><td>🌐 HTML</td><td>S'ouvre dans un navigateur, imprimable</td></tr>
+<tr><td>📝 Word</td><td>Modifiable dans Word / WPS</td></tr>
+</table>
+<p>Coche les <b>documents à joindre</b> (photos, ordonnances) : dans les formats PDF et HTML, ils sont intégrés en <b>annexes cliquables</b>.</p>
+
+<h3>Envoyer</h3>
+<p>Tape <span class="pill">📤 Envoyer</span> : le menu de partage Android s'ouvre. Au premier envoi, un rappel s'affiche sur les <b>messageries sécurisées de santé</b> (MSSanté, Apicrypt) — les relèves contiennent des données nominatives.</p>
+<div class="tip"><b>Journal des envois :</b> chaque relève envoyée est tracée. Tu peux <b>rouvrir</b> une relève passée pour la renvoyer.</div>
+</div></section>
+<section id="securite"><div class="wrap"><h2><span class="n">10</span>Sécurité et sauvegarde</h2>
+<h3>Verrouillage</h3>
+<ul>
+<li><b>Code PIN</b> à 4 chiffres, demandé à l'ouverture (Réglages → Sécurité)</li>
+<li><b>Empreinte digitale</b> une fois le PIN activé — proposée automatiquement à l'ouverture</li>
+</ul>
+<p>Tes données sont <b>chiffrées</b> sur le téléphone et ne quittent jamais l'appareil.</p>
+<h3>Sauvegarde</h3>
+<div class="warn"><b>Fais des sauvegardes régulières !</b> Tes données ne vivent que sur ton téléphone. Un indicateur t'alerte au-delà de 7 jours sans sauvegarde.</div>
+<ul>
+<li><b>💾 Enregistrer</b> — écrit un fichier dans <i>Fichiers ▸ Téléchargements ▸ JMSante</i></li>
+<li><b>📤 Partager</b> — envoie la sauvegarde vers Drive, mail, ton PC…</li>
+<li><b>📂 Importer</b> — restaure une sauvegarde (remplace les données actuelles)</li>
+</ul>
+<h3>La corbeille</h3>
+<p>Un patient supprimé va dans la <b>corbeille</b> (Réglages → 🗑) et reste récupérable <b>30 jours</b>.</p>
+</div></section>
+<section id="synchro"><div class="wrap"><h2><span class="n">11</span>🔄 Partage & synchronisation entre collègues</h2>
+<p class="lead">JM@Santé permet à plusieurs infirmiers de <b>partager les données d'une tournée</b> et de les maintenir à jour, <b>sans serveur</b> : on échange un simple fichier, comme la relève.</p>
+
+<div class="warn"><b>💾 Sauvegarde ≠ 🔄 Synchro.</b> La <b>sauvegarde</b> contient <b>toutes</b> tes données (patients, passages, réglages) — c'est ta protection en cas de perte et le moyen de passer du téléphone au PC. La <b>synchro</b> ne contient que <b>tes changements récents</b>, pour mettre à jour un collègue. <b>Premier échange avec quelqu'un : envoie une sauvegarde</b> pour partir de la même base ; ensuite la synchro suffit. Si tu te trompes de bouton, l'app reconnaît le fichier et applique le bon traitement.</div>
+
+<div class="tip"><b>L'idée en une phrase :</b> tu envoies un « fichier dynamique » qui met à jour l'app de ton collègue avec tes derniers passages, rappels et bilans — tout en préservant SON ordre de passage, SON thème et SES réglages.</div>
+
+<h3>1. Définir ton identité (une seule fois)</h3>
+<p>La première fois que tu partages, l'app te demande ton <b>nom et prénom</b>. Ils servent à signer tes modifications (« ajouté par Jean-Marie ») pour que ton collègue sache qui a fait quoi. Ces informations restent sur ton téléphone.</p>
+
+<h3>2. Envoyer le fichier dynamique</h3>
+<p>Deux endroits pour l'envoyer :</p>
+<ul>
+<li>Dans l'écran <span class="pill">📋 Relève</span> → bouton <b>« 🔄 Envoyer le fichier dynamique de tournée »</b></li>
+<li>Dans <span class="pill">🗺️ Réglages</span> → section <b>« 🔄 Partage & synchronisation »</b> → <b>📤 Envoyer la synchro</b></li>
+</ul>
+<p>Le menu de partage Android s'ouvre → tu l'envoies par WhatsApp, mail, etc., exactement comme la relève.</p>
+<div class="tip"><b>Ce que contient le fichier :</b> uniquement ce qui a changé (incrémental et léger), avec les <b>dates d'échéance</b> des rappels — ainsi le compte à rebours se <b>recalcule tout seul</b> chez ton collègue (un rappel « dans 10 jours » chez toi deviendra « dans 3 jours » chez lui une semaine plus tard, sans nouvelle synchro).</div>
+
+<h3>3. Recevoir une synchro</h3>
+<ol class="steps">
+<li>Ton collègue t'envoie son fichier — tu le reçois (WhatsApp, mail…)</li>
+<li>Dans <span class="pill">🗺️ Réglages</span> → <b>📥 Recevoir</b> → sélectionne le fichier</li>
+<li>Un écran de validation s'affiche : <b>« De Marie : 5 mises à jour, 1 plan de soins, 1 conflit »</b></li>
+</ol>
+<div class="mock">
+  <div class="hd">🔄 Synchronisation reçue</div>
+  <div class="row small">De <b>Marie Bernard</b> — 5 mise(s) à jour automatique(s), 1 plan de soins, <span style="color:#b35c00">1 conflit</span>.</div>
+  <div class="row" style="margin-top:6px"><span class="chip on" style="width:100%;text-align:center;padding:8px">Appliquer cette synchro</span></div>
+</div>
+
+<h3>4. Nouveaux patients et suppressions</h3>
+<p>Si ton collègue fait une <b>admission</b>, le dossier t'arrive avec son <b>plan de soins</b> et ses premiers passages. Il apparaît dans une section dédiée — <b>accepté par défaut</b>, tu peux l'ignorer d'un tap.</p>
+<div class="warn"><b>Les suppressions sont refusées par défaut.</b> Si un collègue supprime un patient, la demande t'est présentée mais rien n'est supprimé sans ton accord explicite (double confirmation). Et si tu acceptes, le dossier part dans <b>ta corbeille</b> — récupérable 30 jours.</div>
+
+<h3>5. Les trois types de données</h3>
+<table>
+<tr><th>Type</th><th>Comportement</th></tr>
+<tr><td><b>Données courantes</b><br>(passages, constantes, rappels, bilans, documents)</td><td>Fusionnées automatiquement. Rien à valider.</td></tr>
+<tr><td><b>Plan de soins</b></td><td>Toute modification par un collègue t'est présentée à <b>accepter ou refuser</b>, un par un.</td></tr>
+<tr><td><b>Tes réglages perso</b><br>(ordre de passage, thème, code PIN, créneaux)</td><td><b>Jamais</b> touchés par une synchro. Chacun garde son confort.</td></tr>
+</table>
+
+<h3>6. Trancher un conflit</h3>
+<p>Un <b>conflit</b> survient si toi et ton collègue avez modifié <b>la même chose</b> chacun de votre côté avant de vous synchroniser. L'app te présente les deux versions et te laisse choisir, <b>donnée par donnée</b> :</p>
+<div class="mock">
+  <div class="hd">⚠️ Conflit — MARTIN Yvonne</div>
+  <div class="row"><span class="chip on" style="flex:1;text-align:center">La mienne</span><span class="chip" style="flex:1;text-align:center">Celle de Marie</span></div>
+</div>
+<p>Tu ne re-choisis que ce qui est vraiment en conflit — le reste passe automatiquement.</p>
+
+<h3>7. Le garde-fou : revenir en arrière</h3>
+<div class="warn"><b>Avant chaque synchro appliquée, l'app crée une sauvegarde de ton état.</b> Si tu constates qu'une modification t'a fait perdre quelque chose, tu peux revenir à l'état d'avant.</div>
+<ol class="steps">
+<li>Va dans <span class="pill">🗺️ Réglages</span> → <b>🕰️ Historique des synchros</b></li>
+<li>Chaque synchro reçue y figure avec sa date</li>
+<li>Bouton <b>↩︎</b> pour <b>revenir à l'état d'avant</b> cette synchro</li>
+<li>Bouton <b>🗑</b> pour supprimer un point de restauration, ou <b>🧹 Vider tout l'historique</b> pour faire le ménage</li>
+</ol>
+<div class="tip">Les sauvegardes de synchro n'affectent pas tes données actuelles — ce sont juste des points de retour. Les supprimer libère de la place sans rien changer à tes dossiers.</div>
+
+<h3>Le bon rythme de travail</h3>
+<p>En fin de tournée, tu envoies ton fichier dynamique à ton collègue. Il l'applique et voit tes passages du jour, tes rappels avec leur compte à rebours à jour. Réciproquement, tu appliques le sien. Vous restez synchronisés, chacun avec son organisation personnelle.</p>
+</div></section>
+<section id="installer"><div class="wrap"><h2><span class="n">12</span>📲 Installer l'app (iPhone, Android, PC)</h2>
+<p class="lead">En plus de l'application Android classique, JM@Santé s'installe directement depuis un lien web — c'est la seule voie sur <b>iPhone</b>, et une alternative légère ailleurs.</p>
+
+<h3>Sur iPhone / iPad</h3>
+<ol class="steps">
+<li>Ouvre le lien de l'app dans <b>Safari</b> (pas Chrome)</li>
+<li>Tape le bouton <b>Partager</b> en bas de l'écran</li>
+<li>Fais défiler et choisis <b>« Sur l'écran d'accueil »</b></li>
+<li>Tape <b>Ajouter</b> — l'icône apparaît sur ton écran</li>
+</ol>
+<div class="warn"><b>⚠️ Étape indispensable, pas optionnelle.</b> Tant que l'app n'est pas installée sur l'écran d'accueil, <b>iOS peut effacer toutes tes données</b> après quelques jours sans l'ouvrir. Une fois installée, elles sont conservées durablement. L'app t'affiche une bannière d'avertissement tant que ce n'est pas fait — ne l'ignore pas.</div>
+
+<h3>Sur Android</h3>
+<p>Ouvre le lien dans Chrome : un bouton <b>« 📲 Installer l'application »</b> apparaît, ou passe par le menu ⋮ → <b>Installer l'application</b>. Le stockage Android est persistant, il n'y a pas le risque d'effacement d'iOS.</p>
+
+<h3>Sur PC</h3>
+<p>Dans Chrome ou Edge, une icône d'installation apparaît dans la barre d'adresse. (Il existe aussi une version Windows classique en .exe — voir la section suivante.)</p>
+
+<h3>Fonctionne hors ligne</h3>
+<p>Une fois installée, l'app fonctionne <b>sans connexion</b> : tu peux saisir toute ta tournée en zone blanche. Seule la dictée vocale et le partage nécessitent le réseau.</p>
+
+<div class="tip"><b>Sauvegarde :</b> quelle que soit la façon dont tu installes l'app, exporte régulièrement tes données (🗺️ → Sauvegarde). C'est ton filet de sécurité universel.</div>
+</div></section>
+<section id="windows"><div class="wrap"><h2><span class="n">13</span>La version Windows</h2>
+<p>JM@Santé existe aussi en application <b>Windows</b>, pratique pour préparer les tournées ou générer les relèves sur grand écran.</p>
+<h3>Le pont entre téléphone et PC</h3>
+<ol class="steps">
+<li>Sur un appareil : <b>💾 Exporter</b> ou <b>📤 Partager</b> la sauvegarde (fichier .json)</li>
+<li>Transfère le fichier sur l'autre appareil (mail, Drive, câble)</li>
+<li>Sur l'autre appareil : <b>📂 Importer</b> le fichier</li>
+</ol>
+<div class="warn"><b>Un seul appareil « maître » à la fois :</b> l'import <b>remplace</b> les données. Le bon rythme : préparer sur PC → exporter → importer sur le téléphone → travailler la journée sur le téléphone → exporter le soir → importer sur PC. N'édite pas les deux en parallèle le même jour.</div>
+<p class="cap" style="max-width:none">La dictée vocale et l'empreinte ne sont pas disponibles sur PC ; le code PIN, lui, fonctionne.</p>
+</div></section>
+<section id="astuces"><div class="wrap"><h2><span class="n">14</span>Astuces & résumé des gestes</h2>
+<table>
+<tr><th>Geste</th><th>Effet</th></tr>
+<tr><td>Appui long sur un soin coché</td><td>Ajouter un commentaire à ce soin</td></tr>
+<tr><td>Appui long sur une phrase type</td><td>Modifier la phrase</td></tr>
+<tr><td>Appui long sur un soin du catalogue</td><td>Renommer le soin</td></tr>
+<tr><td>Tape ☰ puis une ligne (écran 👥)</td><td>Déplacer un patient dans l'ordre</td></tr>
+<tr><td>Glisser une carte patient</td><td>Marquer RÀS / accès rapide</td></tr>
+<tr><td>Bouton 🎤 flottant</td><td>Dictée rapide vers un patient</td></tr>
+<tr><td>💬 dans un commentaire de soin</td><td>Insérer une phrase type</td></tr>
+<tr><td>Bandeau ☀️/🌙 du Moniteur</td><td>Basculer la vue matin / soir</td></tr>
+<tr><td>Sélecteur ☀️/🌙 dans l'écran 👥</td><td>Composer/ordonner chaque créneau à part</td></tr>
+<tr><td>🚫 dans le déroulé ▶</td><td>Sauter un patient sans l'inclure dans la relève</td></tr>
+<tr><td>Précisions sous la catégorie d'un rappel</td><td>Remplir le détail en un tap, puis compléter</td></tr>
+<tr><td>📤 sous les constantes</td><td>Les faire figurer dans la relève</td></tr>
+<tr><td>📋 / 📑 en bout de la barre de filtres</td><td>Basculer l'affichage compact du Moniteur</td></tr>
+<tr><td>✍️ et 💬 dans l'aperçu de relève</td><td>Signer · ajouter un message de fin</td></tr>
+</table>
+<div class="tip"><b>Le réflexe à garder :</b> sauvegarde souvent (📤 vers ton Drive), surtout avant chaque mise à jour de l'application.</div>
+</div></section>
+
+<footer><b style="color:var(--accent)">JM@Santé by JmCve83</b> — Toulon production · <i>« Tout est dans la cigale »</i><br>
+Mode d'emploi · Application de relève infirmière · Toutes les données restent sur votre appareil.<br>Généré pour un usage personnel — ce document peut être imprimé (Ctrl+P → Enregistrer en PDF).</footer>
+</body></html>

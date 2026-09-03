@@ -1,7 +1,4 @@
-﻿name: Build JM@Santé Windows
-
-permissions:
-  contents: write
+name: Build JM@Santé Windows
 
 on:
   push:
@@ -52,4 +49,3 @@ jobs:
           files: |
             dist-electron/JMSante-Setup-*.exe
             dist-electron/JMSante-Portable-*.exe
-

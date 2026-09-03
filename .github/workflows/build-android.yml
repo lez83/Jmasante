@@ -1,7 +1,4 @@
-﻿name: Build JM@Santé APK
-
-permissions:
-  contents: write
+name: Build JM@Santé APK
 
 on:
   push:
@@ -117,4 +114,3 @@ jobs:
         with:
           files: android/app/build/outputs/apk/debug/app-debug.apk
           name: "JM@Santé ${{ github.ref_name }}"
-

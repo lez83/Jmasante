@@ -4712,8 +4712,16 @@ function showReport(text, opts, keepExtras){
         else if (a.d.mime && a.d.mime.startsWith("image/")){
           html += `<img src="${data}" alt="${esc(a.d.name)}">`;
         } else if (a.d.mime === "application/pdf"){
-          html += `<embed src="${data}" type="application/pdf">`;
-          html += `<p style="font-size:9pt;color:#666">Si le PDF ne s'affiche pas ci-dessus : <a href="${data}" download="${esc(a.d.name)}">télécharger ${esc(a.d.name)}</a></p>`;
+          // Rendu en images : <embed src="data:…"> est bloqué par le WebView
+          // Android et laisse un cadre blanc chez le destinataire.
+          const pages = await pdfToImagesGlobal(data, 8);
+          if (pages && pages.length){
+            pages.forEach(pg => { html += `<img src="${pg.dataUrl}" alt="${esc(a.d.name)}">`; });
+            if (pages[0].total > pages.length)
+              html += `<p style="font-size:9pt;color:#666">${pages[0].total - pages.length} page(s) non affichée(s) — <a href="${data}" download="${esc(a.d.name)}">télécharger le PDF complet</a></p>`;
+          } else {
+            html += `<p style="font-size:9pt;color:#666"><a href="${data}" download="${esc(a.d.name)}">Télécharger ${esc(a.d.name)}</a></p>`;
+          }
         } else {
           html += `<p><a href="${data}" download="${esc(a.d.name)}">Télécharger ${esc(a.d.name)}</a></p>`;
         }
@@ -5960,14 +5968,14 @@ async function downloadManuel(mode){
     const html = await res.text();
 
     if (mode === "pdf"){
-      // Ouvrir dans le navigateur : l'utilisateur fait Imprimer → PDF
-      const blob = new Blob([html], { type:"text/html" });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if (!w) { toast("Autorise les fenêtres pour ouvrir le manuel"); return; }
-      setTimeout(() => { try { w.print(); } catch(e){} }, 1200);
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      toast("Manuel ouvert — utilise « Imprimer → PDF » 📑");
+      // Aperçu DANS l'app : un onglet séparé piège l'utilisateur
+      // dans le WebView Android (pas de barre d'adresse, pas de retour).
+      if (typeof showFichePreview === "function"){
+        showFichePreview(html, "JMSante_Mode_emploi");
+        toast("Utilise « Imprimer / PDF » en bas de l'écran 📑");
+      } else {
+        await shareText(html, "JMSante_Mode_emploi.html", "text/html");
+      }
       return;
     }
 

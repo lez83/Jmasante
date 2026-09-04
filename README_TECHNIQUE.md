@@ -269,8 +269,13 @@ aperçu PDF vide dans la visionneuse, encart vide dans la fiche exportée, docum
 (`buildFiche`) et les annexes de relève. Ne jamais revenir à `<iframe>`/`<embed>`
 pour afficher un document stocké.
 
-Pour du HTML **généré** (aperçu de fiche), `iframe.srcdoc` fonctionne — contrairement à
-une URL `data:` ou `blob:`.
+Pour du HTML **généré** (aperçu de fiche, mode d'emploi), `iframe.srcdoc` fonctionne —
+contrairement à une URL `data:` ou `blob:`.
+
+**Les trois emplacements corrigés** (audit du 4 sept.) : visionneuse de document
+(`viewDoc`), fiche patient exportée (`buildFiche`), annexes PDF de la relève HTML
+(`buildHtml`). Tous passent par `pdfToImagesGlobal`. Un `grep '<embed\|<iframe'` doit
+rester vide de tout contenu stocké.
 
 ## ⚠️ Ne jamais ouvrir d'onglet séparé
 
@@ -278,6 +283,13 @@ une URL `data:` ou `blob:`.
 l'utilisateur est piégé et doit tuer l'app. Tout aperçu ou impression se fait **dans**
 l'app, via une couche plein écran avec bouton retour (`showFichePreview`), l'impression
 étant déclenchée sur l'iframe (`fr.contentWindow.print()`).
+
+`showFichePreview()` sert aussi au **mode d'emploi** (bouton « Ouvrir pour PDF » du guide) :
+`fiche.js` précède `features.js` dans `ORDER_*`, la fonction est donc disponible.
+
+**`window.open` légitimes** : bouton « Ouvrir » de la visionneuse (action explicite, après
+tentative d'ouverture native) et lien GPS `_system` (délégué à Maps). Tout autre usage est
+à proscrire.
 
 ## Export de fiche patient
 

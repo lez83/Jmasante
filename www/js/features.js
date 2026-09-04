@@ -561,14 +561,14 @@ async function downloadManuel(mode){
     const html = await res.text();
 
     if (mode === "pdf"){
-      // Ouvrir dans le navigateur : l'utilisateur fait Imprimer → PDF
-      const blob = new Blob([html], { type:"text/html" });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if (!w) { toast("Autorise les fenêtres pour ouvrir le manuel"); return; }
-      setTimeout(() => { try { w.print(); } catch(e){} }, 1200);
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      toast("Manuel ouvert — utilise « Imprimer → PDF » 📑");
+      // Aperçu DANS l'app : un onglet séparé piège l'utilisateur
+      // dans le WebView Android (pas de barre d'adresse, pas de retour).
+      if (typeof showFichePreview === "function"){
+        showFichePreview(html, "JMSante_Mode_emploi");
+        toast("Utilise « Imprimer / PDF » en bas de l'écran 📑");
+      } else {
+        await shareText(html, "JMSante_Mode_emploi.html", "text/html");
+      }
       return;
     }
 

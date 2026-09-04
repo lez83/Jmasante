@@ -268,6 +268,31 @@ async function shareFiles(files, title, text=""){
   return false;
 }
 
+/* Convertir un PDF (dataURL) en images de pages via pdf.js.
+   Indispensable : le WebView Android bloque les data:/blob: dans
+   <iframe> et <embed>, donc on rend les PDF en images. */
+async function pdfToImagesGlobal(dataUrl, maxPages=5){
+  if (!window.pdfjsLib) return null;
+  try {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/libs/pdfjs.worker.js";
+    const raw = atob(String(dataUrl).split(",")[1] || dataUrl);
+    const arr = new Uint8Array(raw.length);
+    for (let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+    const pdf = await window.pdfjsLib.getDocument({ data:arr }).promise;
+    const imgs = [];
+    const n = Math.min(pdf.numPages, maxPages);
+    for (let p=1; p<=n; p++){
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({ scale:1.6 });
+      const cv = document.createElement("canvas");
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext:cv.getContext("2d"), viewport:vp }).promise;
+      imgs.push({ dataUrl: cv.toDataURL("image/jpeg",0.82), w:vp.width, h:vp.height, page:p, total:pdf.numPages });
+    }
+    return imgs;
+  } catch(e){ console.warn("pdfToImages:", e); return null; }
+}
+
 let _lastReport = null; // relève courante, pour la rouvrir après message/signature
 
 /* Retire l'encart texte du message : PDF et HTML le rendent eux-mêmes

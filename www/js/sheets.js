@@ -898,20 +898,32 @@ function viewDoc(d){
       </div>`;
     }
 
-    /* ── PDF : aperçu intégré, avec repli si le navigateur refuse ── */
+    /* ── PDF : rendu en images (le WebView bloque data:/blob: en iframe) ── */
     else if ((d.mime||"").includes("pdf") || /\.pdf$/i.test(d.name||"")){
-      const url = dataToUrl(data, d.mime || "application/pdf");
       ov.innerHTML = `<div class="dv-wrap dv-full">
         <div class="dv-head">${docIcon(d)} ${esc(d.name)}</div>
-        <iframe class="dv-frame" src="${url}"></iframe>
+        <div class="dv-pages"><div class="dv-noprev">Rendu du document…</div></div>
         <div class="dv-bar">
           <button class="btn btn-primary dv-share">📤 Partager / Enregistrer</button>
           <button class="btn btn-ghost dv-open">👁 Ouvrir</button>
           <button class="btn btn-ghost dv-close">Fermer</button>
         </div>
       </div>`;
-      const fr = ov.querySelector(".dv-frame");
-      if (fr) fr.onerror = () => { fr.outerHTML = `<div class="dv-noprev">Aperçu indisponible sur cet appareil.<br><small>Utilise « Ouvrir » ou « Partager ».</small></div>`; };
+      ov.querySelectorAll(".dv-close").forEach(b => b.onclick = closeAll);
+      ov.querySelectorAll(".dv-open").forEach(b => b.onclick = () => openDocExternal(d, data));
+      ov.querySelectorAll(".dv-share").forEach(b => b.onclick = () => shareDoc(d, data));
+      const box = ov.querySelector(".dv-pages");
+      const imgs = await pdfToImagesGlobal(data, 12);
+      if (!box) return;
+      if (imgs && imgs.length){
+        box.innerHTML = imgs.map(im =>
+          `<img class="dv-page" src="${im.dataUrl}" alt="page ${im.page}">`).join("")
+          + (imgs[0].total > imgs.length
+             ? `<p class="dv-more">${imgs[0].total - imgs.length} page(s) supplémentaire(s) — utilise « Ouvrir » pour tout voir.</p>` : "");
+      } else {
+        box.innerHTML = `<div class="dv-noprev">Aperçu indisponible sur cet appareil.<br><small>Utilise « Ouvrir » ou « Partager ».</small></div>`;
+      }
+      return;   // handlers déjà posés
     }
 
     /* ── Word et autres : pas d'aperçu possible, on propose les actions ── */

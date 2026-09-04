@@ -90,24 +90,21 @@ async function buildFiche(p, inc, docIds, fmt, printIt){
   for (const id of docIds){
     const meta = (p.docs||[]).find(d => d.id === id);
     if (!meta) continue;
-    try { const data = await idbGet("doc_"+id); if (data) docs.push({ ...meta, data }); }
-    catch(e){ /* document illisible : on l'ignore */ }
+    try {
+      const data = await idbGet("doc_"+id);
+      if (!data) continue;
+      // Les PDF sont rendus en IMAGES : <embed src="data:..."> est bloqué
+      // par le WebView Android et donnait un encart blanc.
+      if ((meta.mime||"").includes("pdf") || /\.pdf$/i.test(meta.name||"")){
+        const pages = await pdfToImagesGlobal(data, 8);
+        docs.push({ ...meta, data, pages: pages || null });
+      } else {
+        docs.push({ ...meta, data });
+      }
+    } catch(e){ /* document illisible : on l'ignore */ }
   }
 
   const infosOf = type => (p.infos||[]).filter(i => i.type === type && (i.txt||"").trim());
-
-  if (fmt === "html" || printIt){
-    const html = ficheHtml(p, inc, docs, nom);
-    if (printIt){
-      const w = window.open("", "_blank");
-      if (!w){ toast("Autorise les fenêtres pour imprimer"); return; }
-      w.document.write(html); w.document.close();
-      setTimeout(() => { try { w.print(); } catch(e){} }, 700);
-      return;
-    }
-    await shareText(html, base + ".html", "text/html");
-    return;
-  }
 
   if (fmt === "docx"){
     const txt = ficheTexte(p, inc, docs, nom);
@@ -116,13 +113,54 @@ async function buildFiche(p, inc, docIds, fmt, printIt){
     return;
   }
 
-  // PDF : on passe par le HTML imprimable (rendu fidèle, photos intégrées)
   const html = ficheHtml(p, inc, docs, nom);
-  const w = window.open("", "_blank");
-  if (!w){ toast("Autorise les fenêtres pour générer le PDF"); return; }
-  w.document.write(html); w.document.close();
-  setTimeout(() => { try { w.print(); } catch(e){} }, 800);
-  toast("Utilise « Enregistrer en PDF » dans la boîte d'impression 📑");
+
+  if (fmt === "html" && !printIt){
+    await shareText(html, base + ".html", "text/html");
+    return;
+  }
+
+  // PDF et impression : aperçu DANS l'app (un onglet séparé piège
+  // l'utilisateur dans le WebView Android, sans retour possible).
+  showFichePreview(html, base);
+}
+
+/* ---------- Aperçu de la fiche, avec sortie toujours possible ---------- */
+function showFichePreview(html, base){
+  const old = document.getElementById("fichePrev");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "fichePrev";
+  el.className = "fiche-prev";
+  el.innerHTML = `
+    <div class="fp-bar">
+      <button class="fp-back" id="fp-back">← Retour</button>
+      <span class="fp-t">Aperçu de la fiche</span>
+    </div>
+    <iframe class="fp-frame" id="fp-frame"></iframe>
+    <div class="fp-actions">
+      <button class="btn btn-primary" id="fp-print">🖨️ Imprimer / PDF</button>
+      <button class="btn btn-ghost" id="fp-share">📤 Partager</button>
+    </div>`;
+  document.body.appendChild(el);
+
+  // srcdoc plutôt qu'une URL : accepté par le WebView, contrairement à data:/blob:
+  const fr = el.querySelector("#fp-frame");
+  fr.srcdoc = html;
+
+  const close = () => el.remove();
+  el.querySelector("#fp-back").onclick = close;
+  el.querySelector("#fp-print").onclick = () => {
+    try {
+      const w = fr.contentWindow;
+      w.focus(); w.print();
+      toast("Choisis « Enregistrer en PDF » dans la boîte d'impression 📑");
+    } catch(e){ toast("Impression indisponible — utilise « Partager »", "danger"); }
+  };
+  el.querySelector("#fp-share").onclick = () => shareText(html, base + ".html", "text/html");
+  // Sécurité : la touche retour Android ferme l'aperçu
+  const onBack = ev => { if (ev.key === "Escape"){ close(); document.removeEventListener("keydown", onBack); } };
+  document.addEventListener("keydown", onBack);
 }
 
 /* ---------- Rendu HTML de la fiche ---------- */
@@ -181,8 +219,13 @@ function ficheHtml(p, inc, docs, nom){
       docs.map(d => {
         if ((d.mime||"").startsWith("image/"))
           return `<figure><img src="${d.data}" alt="${esc(d.name)}"><figcaption>${esc(d.name)}${d.date?` — ${fmtFR(d.date)}`:""}</figcaption></figure>`;
-        if ((d.mime||"").includes("pdf"))
-          return `<figure><embed src="${d.data}" type="application/pdf"><figcaption>${esc(d.name)}${d.date?` — ${fmtFR(d.date)}`:""}</figcaption></figure>`;
+        if ((d.mime||"").includes("pdf") || /\.pdf$/i.test(d.name||"")){
+          if (d.pages && d.pages.length)
+            return `<figure>${d.pages.map(pg=>`<img src="${pg.dataUrl}" alt="${esc(d.name)}">`).join("")}` +
+                   `<figcaption>${esc(d.name)}${d.date?` — ${fmtFR(d.date)}`:""}` +
+                   `${d.pages[0].total>d.pages.length?` (${d.pages.length}/${d.pages[0].total} pages)`:""}</figcaption></figure>`;
+          return `<p class="doclink">${docIcon(d)} ${esc(d.name)}${d.date?` — ${fmtFR(d.date)}`:""} <i>(aperçu indisponible)</i></p>`;
+        }
         return `<p class="doclink">${docIcon(d)} ${esc(d.name)}${d.date?` — ${fmtFR(d.date)}`:""} <i>(joint séparément)</i></p>`;
       }).join("") + `</section>`;
   }

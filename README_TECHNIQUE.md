@@ -258,6 +258,27 @@ Vérifié de 320×568 à 1024×768.
 **Saisie** — la classe `body.typing` (posée au focus d'un champ) masque les boutons flottants
 🏁 et 🎤 pour qu'ils ne recouvrent pas les champs.
 
+## ⚠️ WebView Android : data:/blob: bloqués dans iframe et embed
+
+Le WebView Android **refuse silencieusement** `<iframe src="blob:…">` et
+`<embed src="data:…">` : le cadre reste **blanc**, sans erreur. Trois symptômes rencontrés —
+aperçu PDF vide dans la visionneuse, encart vide dans la fiche exportée, document non joint.
+
+**La parade** : rendre les PDF en **images** avec `pdfToImagesGlobal(dataUrl, maxPages)`
+(pdf.js, déjà embarqué). Utilisé par la visionneuse (`viewDoc`), l'export de fiche
+(`buildFiche`) et les annexes de relève. Ne jamais revenir à `<iframe>`/`<embed>`
+pour afficher un document stocké.
+
+Pour du HTML **généré** (aperçu de fiche), `iframe.srcdoc` fonctionne — contrairement à
+une URL `data:` ou `blob:`.
+
+## ⚠️ Ne jamais ouvrir d'onglet séparé
+
+`window.open()` dans le WebView **remplace la vue** sans barre d'adresse ni retour :
+l'utilisateur est piégé et doit tuer l'app. Tout aperçu ou impression se fait **dans**
+l'app, via une couche plein écran avec bouton retour (`showFichePreview`), l'impression
+étant déclenchée sur l'iframe (`fr.contentWindow.print()`).
+
 ## Export de fiche patient
 
 ```

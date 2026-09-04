@@ -817,3 +817,38 @@ body:has(.ios-banner) .install-btn{ bottom:130px; }
 .typerow .tr-lbl{ font-size:13.5px; font-weight:600; }
 .typerow .tr-sub{ font-size:11px; color:var(--faint); }
 .typerow .tr-ok{ color:var(--accent); font-size:15px; flex-shrink:0; }
+
+/* Pages d'un PDF rendues en images dans la visionneuse */
+.dv-pages{
+  flex:1; overflow-y:auto; width:100%; padding:10px 12px;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  box-sizing:border-box;
+}
+.dv-page{
+  width:100%; max-width:820px; height:auto; border-radius:6px;
+  background:#fff; box-shadow:0 3px 14px rgba(0,0,0,.35);
+}
+.dv-more{ color:#9fb0ab; font-size:12px; text-align:center; margin:4px 0 0; }
+
+/* ── Aperçu de la fiche patient (plein écran, dans l'app) ── */
+.fiche-prev{
+  position:fixed; inset:0; z-index:520; background:var(--bg);
+  display:flex; flex-direction:column;
+}
+.fiche-prev .fp-bar{
+  display:flex; align-items:center; gap:10px; flex-shrink:0;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+}
+.fiche-prev .fp-back{
+  background:transparent; border:1px solid var(--border); border-radius:10px;
+  color:var(--text); font-size:14px; padding:8px 14px; cursor:pointer;
+}
+.fiche-prev .fp-t{ font-size:14px; font-weight:600; color:var(--text); }
+.fiche-prev .fp-frame{ flex:1; width:100%; border:none; background:#fff; }
+.fiche-prev .fp-actions{
+  display:flex; gap:8px; flex-shrink:0;
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));
+  background:var(--surface); border-top:1px solid var(--border);
+}
+.fiche-prev .fp-actions .btn{ flex:1; }

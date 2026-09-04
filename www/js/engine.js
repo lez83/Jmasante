@@ -98,7 +98,8 @@ function sheetSyntheseCiblee(start, end, tour){
       <div style="max-height:32vh;overflow-y:auto;margin-bottom:12px">
         ${pool.map(p=>`<button class="selv" data-sp="${esc(p.id)}" style="width:100%;text-align:left">
           <span class="box">${sel[p.id]?"✓":""}</span>
-          <span class="sv">${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}${p.ctx?` — ${esc(p.ctx)}`:""}</span>
+          <span class="sv">${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}${
+      shownInfos(p).length ? ` — ${esc(shownInfos(p).map(i=>i.txt).join(" · ").slice(0,60))}` : ""}</span>
         </button>`).join("")}
       </div>
 
@@ -152,7 +153,9 @@ function buildSyntheseCiblee(patients, start, end, inc){
     out += "\u2502 \uD83D\uDC64 " + p.nom.replace("Demo-","").toUpperCase() + " " + p.prenom
          + (ageOf(p.dob)!=null ? ", "+ageOf(p.dob)+" ans" : "") + "\n";
     out += "\u2514" + "\u2500".repeat(37) + "\n";
-    if (p.ctx) out += "\u26A0\uFE0F  " + p.ctx + "\n";
+    shownInfos(p).forEach(it => {
+      out += "  " + infoType(it.type).ic + " " + it.txt.replace(/\n+/g," \u00B7 ") + "\n";
+    });
 
     const plan = p.plan || [];
     let planTenu = false; const evts = [], cst = [], nts = [];
@@ -414,7 +417,9 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
     body += "\n┌─────────────────────────────────────\n";
     body += "│ 👤 " + pNom + pAge + pGenre + "\n";
     body += "└─────────────────────────────────────\n";
-    if (p.ctx) body += "⚠️  " + p.ctx + "\n";
+    shownInfos(p).forEach(it => {
+      body += "  " + infoType(it.type).ic + " " + it.txt.replace(/\n+/g," · ") + "\n";
+    });
     if ((p.tags||[]).length) body += "🏷️ " + p.tags.map(t=>PATIENT_TAGS[t]?PATIENT_TAGS[t].ic+" "+PATIENT_TAGS[t].lbl:t).join(" · ") + "\n";
 
     if (layout === "structure"){

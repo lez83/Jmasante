@@ -310,10 +310,37 @@ function showReport(text, opts, keepExtras){
   const baseName = "Releve_JMSante_"+label+"_"+(opts.start||todayISO());
   const pool = relevePool(tour);
 
-  // Docs disponibles depuis IDB
+  // Documents disponibles, regroupés par patient.
+  // On ne propose que les patients qui figurent réellement dans la relève :
+  // inutile d'afficher les documents de quelqu'un qui n'y apparaît pas.
+  const inReport = new Set();
+  try {
+    (text||"").split(/\n(?=┌)/).forEach(part => {
+      const nl = part.split("\n").find(l => l.includes("👤"));
+      if (nl) inReport.add(nl.replace(/[│┌└─👤]/g,"").trim().toLowerCase());
+    });
+  } catch(e){}
+  const inReleve = p => {
+    if (!inReport.size) return true;            // sécurité : si le parsing échoue, on montre tout
+    const n = (p.nom.replace("Demo-","").toUpperCase()+" "+p.prenom).toLowerCase();
+    const n2 = (p.prenom+" "+p.nom.replace("Demo-","").toUpperCase()).toLowerCase();
+    return [...inReport].some(x => x.includes(n.split(",")[0]) || x.includes(n2.split(",")[0])
+                                || n.includes(x.split(",")[0]) || n2.includes(x.split(",")[0]));
+  };
+
   const docMeta = [];
-  pool.forEach(p => (p.docs||[]).forEach(d =>
-    docMeta.push({ p, d, label: p.nom.replace("Demo-","").toUpperCase()+" — "+d.name+(d.date?" ("+fmtFR(d.date)+")":"") })));
+  const docGroups = [];                          // [{ p, items:[{i, d}] }]
+  pool.forEach(p => {
+    const docs = p.docs || [];
+    if (!docs.length || !inReleve(p)) return;
+    const items = [];
+    docs.forEach(d => {
+      const i = docMeta.length;
+      docMeta.push({ p, d, label: p.nom.replace("Demo-","").toUpperCase()+" — "+d.name+(d.date?" ("+fmtFR(d.date)+")":"") });
+      items.push({ i, d });
+    });
+    docGroups.push({ p, items });
+  });
 
   let fmt = "txt";
   const checked = new Set();
@@ -334,12 +361,19 @@ function showReport(text, opts, keepExtras){
     </div>
     ${docMeta.length ? `<div class="field">
       <span class="lab">📎 Docs à joindre</span>
-      <div class="small muted" style="margin-bottom:6px">Photos/PDF → intégrés dans PDF/HTML · envoyés séparément pour Texte/Word</div>
-      <div id="attlist" style="max-height:18vh;overflow-y:auto">
-        ${docMeta.map((x,i)=>`<button class="selv" data-att="${i}">
-          <span class="box"></span>
-          <span class="sv">${esc(x.label)}</span>
-        </button>`).join("")}
+      <div class="small muted" style="margin-bottom:8px">Choisis document par document. Photos et PDF sont intégrés dans les formats PDF/HTML, et envoyés en pièces jointes pour Texte/Word.</div>
+      <div id="attlist" style="max-height:34vh;overflow-y:auto">
+        ${docGroups.map(g=>`
+          <div class="doc-grp">
+            <div class="doc-grp-h">
+              <span>👤 ${esc(g.p.nom.replace("Demo-","").toUpperCase())} ${esc(g.p.prenom)}</span>
+              ${g.items.length>1?`<button class="chip doc-all" data-attall="${g.items.map(x=>x.i).join(",")}" style="font-size:11px">Tout</button>`:""}
+            </div>
+            ${g.items.map(({i,d})=>`<button class="selv" data-att="${i}">
+              <span class="box"></span>
+              <span class="sv">${/^image\//.test(d.mime||"")?"🖼":"📄"} ${esc(d.name)}${d.date?` <span class="small muted">${fmtFR(d.date)}</span>`:""}</span>
+            </button>`).join("")}
+          </div>`).join("")}
       </div></div>` : ""}
     <button class="btn btn-primary" id="rp-send" style="width:100%;margin-top:12px;font-size:15px">
       📤 Envoyer<span id="rp-count"></span>
@@ -378,11 +412,29 @@ function showReport(text, opts, keepExtras){
     const n = checked.size;
     $("#rp-count").textContent = n ? " + "+n+" doc"+(n>1?"s":"") : "";
   };
+  const paintAtt = () => {
+    $$("#attlist [data-att]").forEach(b => {
+      const on = checked.has(+b.dataset.att);
+      b.classList.toggle("on", on);
+      b.querySelector(".box").textContent = on ? "✓" : "";
+    });
+    $$("#attlist [data-attall]").forEach(b => {
+      const ids = b.dataset.attall.split(",").map(Number);
+      b.classList.toggle("on", ids.every(i => checked.has(i)));
+    });
+    updCount();
+  };
   $$("#attlist [data-att]").forEach(b => b.onclick = () => {
     const i = +b.dataset.att;
     checked.has(i) ? checked.delete(i) : checked.add(i);
-    b.classList.toggle("on"); b.querySelector(".box").textContent = checked.has(i)?"✓":"";
-    updCount();
+    paintAtt();
+  });
+  // « Tout » : coche ou décoche tous les documents de CE patient
+  $$("#attlist [data-attall]").forEach(b => b.onclick = () => {
+    const ids = b.dataset.attall.split(",").map(Number);
+    const allOn = ids.every(i => checked.has(i));
+    ids.forEach(i => allOn ? checked.delete(i) : checked.add(i));
+    paintAtt();
   });
 
   // ── Charger un doc depuis IDB ──
@@ -862,7 +914,7 @@ async function shareFeuilleRoute(){
   const rows = sorted.map((p,i)=>`
     <tr>
       <td class="num">${i+1}</td>
-      <td><b>${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}</b>${p.ctx?`<br><span class="ctx">⚠ ${esc(p.ctx)}</span>`:""}
+      <td><b>${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}</b>${shownInfos(p).map(it=>`<br><span class="ctx">${infoType(it.type).ic} ${esc(it.txt)}</span>`).join("")}
         ${(p.tags||[]).length?`<br><span class="tags">${p.tags.map(t=>PATIENT_TAGS[t]?PATIENT_TAGS[t].ic+" "+PATIENT_TAGS[t].lbl:t).join(" · ")}</span>`:""}</td>
       <td>${esc(p.address||"—")}</td>
       <td>${(p.plan||[]).map(esc).join("<br>")||"—"}</td>

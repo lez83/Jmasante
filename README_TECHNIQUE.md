@@ -258,6 +258,43 @@ Vérifié de 320×568 à 1024×768.
 **Saisie** — la classe `body.typing` (posée au focus d'un champ) masque les boutons flottants
 🏁 et 🎤 pour qu'ils ne recouvrent pas les champs.
 
+## Documents joints
+
+```
+inputs : #camerafile · #galleryfile · #docfile (PDF) · #wordfile (.doc/.docx/.odt/.rtf)
+tous branchés sur handleDocFile ; stockage IDB sous la clé doc_<id>
+docIcon(d) → 🖼️ image · 📄 PDF · 📝 Word · 📎 autre
+```
+
+`sheetAddDoc(pid, replaceId)` présente les 4 provenances en grille 2 × 2 (`.srcgrid`),
+puis déclenche le `click()` de l'input correspondant après fermeture de la feuille
+(délai de 120 ms : sur mobile, ouvrir un sélecteur de fichiers pendant la fermeture
+d'un overlay le fait avorter).
+
+**Word non intégrable** — contrairement aux images et aux PDF (rendus via jsPDF/pdf.js),
+les .docx partent en **pièce jointe séparée** dans toutes les relèves. Ne pas tenter de
+les intégrer aux annexes cliquables.
+
+## Informations contextuelles du patient
+
+```
+p.infos = [{ id, type, txt, show }]
+INFO_TYPES = acces | vigilance | atcd | entourage | autre
+shownInfos(p)  ← les entrées show:true et non vides
+```
+
+Remplace l'ancien champ `p.ctx`, qui ressortait **systématiquement en ⚠ vigilance** dans la
+relève — y compris pour des antécédents ou un code de portail.
+
+**Migration** (dans `migrate()`) : si `p.infos` est absent, l'ancien `p.ctx` devient une entrée
+de type `atcd` avec `show:false`. Rien n'est perdu et la relève s'allège immédiatement.
+`p.ctx` continue d'être écrit à l'enregistrement (compatibilité ascendante avec les synchros
+venant d'anciennes versions), mais **ne doit plus être lu pour l'affichage**.
+
+**Affichage** — toujours via `shownInfos(p)` + `infoType(it.type)` : carte patient, déroulé,
+relève (texte, PDF, HTML), feuille de route et écran de sélection. L'icône et la couleur
+viennent du type, jamais codées en dur.
+
 ## Cycle de vie du dossier patient
 
 Quatre marqueurs, à ne pas confondre :

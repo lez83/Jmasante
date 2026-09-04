@@ -172,7 +172,9 @@ function inlineForm(p){
       ${Object.keys(p.contacts||{}).length ? `<button class="tool" data-annuaire="${p.id}" style="flex:1 1 30%">📞 Appels</button>` : ""}
       <button class="tool" data-edit="${p.id}" style="flex:1 1 30%">✏️ Fiche</button>
     </div>
-    ${p.ctx ? `<div class="small" style="background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 10px 10px 0;padding:8px 12px">⚠ ${esc(p.ctx)}</div>` : ""}
+    ${shownInfos(p).map(it => { const T=infoType(it.type);
+      return `<div class="small" style="background:rgba(127,127,127,.07);border-left:3px solid ${T.col};border-radius:0 10px 10px 0;padding:7px 11px;margin-bottom:5px">${T.ic} ${esc(it.txt)}</div>`;
+    }).join("")}
     ${S.slotsEnabled ? `<div class="chips" data-slotrow style="margin:6px 0">
       <button class="chip ${(_curSlot||defaultSlot())==="matin"?"on":""}" data-slot="matin" style="flex:1;justify-content:center">☀️ Matin</button>
       <button class="chip ${(_curSlot||defaultSlot())==="soir"?"on":""}" data-slot="soir" style="flex:1;justify-content:center">🌙 Soir</button>

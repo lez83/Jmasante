@@ -174,12 +174,40 @@ footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
 </div></section>
 <section id="patient"><div class="wrap"><h2><span class="n">4</span>Le dossier patient</h2>
 <p>Tape le bouton <span class="pill">➕</span> pour créer un patient : nom, prénom, date de naissance, sexe, contexte médical (ex. « HTA, diabète »), adresse et contacts.</p>
+<h3>📎 Ajouter un document</h3>
+<p>Dans le dossier patient, tape <span class="pill">📎 Documents</span> puis le bouton <b>＋ Ajouter un document</b>. Tu choisis ensuite la provenance :</p>
+<table>
+<tr><th>Provenance</th><th>Usage</th></tr>
+<tr><td>📷 <b>Photo</b></td><td>Prendre la photo maintenant — plaie, matériel, ordonnance sur place</td></tr>
+<tr><td>🖼️ <b>Galerie</b></td><td>Une photo déjà présente sur le téléphone</td></tr>
+<tr><td>📄 <b>PDF</b></td><td>Ordonnance, bilan biologique, compte-rendu</td></tr>
+<tr><td>📝 <b>Word</b></td><td>Document <b>modifiable</b> (.docx, .doc, .odt, .rtf) — pratique quand le destinataire doit le compléter sans avoir à convertir un PDF</td></tr>
+</table>
+<div class="tip">Chaque document affiche l'icône de son type dans la liste. Les <b>photos</b> et les <b>PDF</b> peuvent être intégrés directement dans les relèves PDF et HTML (en annexes cliquables) ; les documents <b>Word</b> partent en pièce jointe séparée.</div>
+
+<h3>📝 Contexte &amp; informations</h3>
+<p>Chaque information est une <b>ligne à part</b>, avec son type et un interrupteur qui décide si elle figure ou non dans la relève. Tu le règles <b>une seule fois</b> dans la fiche.</p>
+<table>
+<tr><th>Type</th><th>Exemples</th></tr>
+<tr><td>🔑 <b>Accès &amp; domicile</b></td><td>Code portail, clé sous le pot, 3ᵉ étage sans ascenseur, chien</td></tr>
+<tr><td>⚠️ <b>Vigilance</b></td><td>Allergie, risque de chute, contre-indication</td></tr>
+<tr><td>📋 <b>Antécédents</b></td><td>HTA, diabète, PTH droite 2019</td></tr>
+<tr><td>👨‍👩‍👧 <b>Entourage</b></td><td>Fille présente le week-end, aide à domicile le matin</td></tr>
+<tr><td>📌 <b>Autre</b></td><td>Toute autre information utile</td></tr>
+</table>
+<ul>
+<li>Tape l'<b>icône</b> pour changer le type de l'information</li>
+<li>L'<b>interrupteur</b> indique <b>relève</b> (elle apparaît sur chaque relève de ce patient) ou <b>fiche</b> (consultable ici seulement)</li>
+<li>Le <b>✕</b> supprime la ligne</li>
+</ul>
+<div class="tip"><b>L'intérêt :</b> le code du portail accompagne systématiquement tes transmissions — ton remplaçant l'a sous les yeux — tandis que les antécédents restent disponibles dans la fiche sans alourdir la relève. Et surtout, seule la <b>Vigilance</b> apparaît en ⚠️ orange : un antécédent d'arthrose ne passe plus pour une alerte.</div>
+
 <h3>Le plan de soins</h3>
 <p>Coche les soins habituels du patient : ils te seront proposés à chaque passage. Tu peux en ajouter à la volée avec <b>＋ autre…</b>.</p>
 <h3>Les outils du dossier</h3>
 <table>
 <tr><th>Outil</th><th>Usage</th></tr>
-<tr><td>📎 Documents</td><td>Photos de plaies, ordonnances, bilans PDF. Stockés chiffrés, jamais dans la galerie du téléphone.</td></tr>
+<tr><td>📎 Documents</td><td>Photos de plaies, ordonnances, comptes-rendus. Stockés chiffrés, jamais dans la galerie du téléphone.</td></tr>
 <tr><td>🧪 Bilans / RDV</td><td>Prise de sang, consultation… avec date et statut. Crée automatiquement un rappel.</td></tr>
 <tr><td>📌 Rappels</td><td>Ordonnance à renouveler, RDV… avec compte à rebours J-3 → Jour J.</td></tr>
 <tr><td>🕑 Historique</td><td>Tous les passages passés du patient.</td></tr>
@@ -417,7 +445,14 @@ footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
 <tr><td>🌐 HTML</td><td>S'ouvre dans un navigateur, imprimable</td></tr>
 <tr><td>📝 Word</td><td>Modifiable dans Word / WPS</td></tr>
 </table>
-<p>Coche les <b>documents à joindre</b> (photos, ordonnances) : dans les formats PDF et HTML, ils sont intégrés en <b>annexes cliquables</b>.</p>
+<h3>📎 Choisir les documents à joindre</h3>
+<p>Les documents sont <b>regroupés par patient</b>, ce qui te permet de choisir précisément lesquels partir. Si un patient a deux photos de plaie et que tu n'en veux qu'une, tu ne coches que celle-là.</p>
+<ul>
+<li>Seuls les patients <b>figurant dans la relève</b> sont proposés</li>
+<li>Un bouton <b>Tout</b> apparaît quand un patient a plusieurs documents</li>
+<li>Le compteur du bouton d'envoi indique le nombre de documents joints</li>
+</ul>
+<div class="tip">Dans les formats <b>PDF</b> et <b>HTML</b>, les documents sont intégrés en <b>annexes cliquables</b> : une ligne « 📎 Voir : fichier (Annexe N) » dans le bloc du patient renvoie directement au document en fin de relève. En <b>Texte</b> et <b>Word</b>, ils sont envoyés en pièces jointes séparées.</div>
 
 <h3>Envoyer</h3>
 <p>Tape <span class="pill">📤 Envoyer</span> : le menu de partage Android s'ouvre. Au premier envoi, un rappel s'affiche sur les <b>messageries sécurisées de santé</b> (MSSanté, Apicrypt) — les relèves contiennent des données nominatives.</p>

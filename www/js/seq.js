@@ -60,7 +60,9 @@ function renderSeq(){
     <button class="btn btn-ghost" id="sq-skip" style="width:100%;margin-bottom:10px;font-size:13.5px">
       🚫 Pas de passage prévu aujourd'hui — patient suivant
     </button>
-    ${p.ctx?`<div class="small" style="background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 10px 10px 0;padding:8px 12px;margin-bottom:10px">⚠ ${esc(p.ctx)}</div>`:""}
+    ${shownInfos(p).map(it => { const T=infoType(it.type);
+      return `<div class="small" style="background:rgba(127,127,127,.07);border-left:3px solid ${T.col};border-radius:0 10px 10px 0;padding:8px 12px;margin-bottom:8px">${T.ic} ${esc(it.txt)}</div>`;
+    }).join("")}
     <div id="seq-form"></div>`;
 
   // Formulaire inline

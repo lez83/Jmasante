@@ -195,6 +195,16 @@ function migrate(){
   if (!S.syncHistory) S.syncHistory = [];      // fusions reçues + snapshots (garde-fou)
   if (S.changeSeq === undefined) S.changeSeq = 0;
   if (!S.noVisit) S.noVisit = {};
+  // Migration du champ « contexte » vers les informations subdivisées.
+  // L'ancien texte devient un antécédent, masqué de la relève par défaut :
+  // il n'apparaîtra plus comme une vigilance.
+  (S.patients||[]).forEach(p => {
+    if (!p.infos){
+      p.infos = [];
+      if ((p.ctx||"").trim())
+        p.infos.push({ id:uid(), type:"atcd", txt:p.ctx.trim(), show:false });
+    }
+  });
   if (S.lastSentSeq === undefined) S.lastSentSeq = 0;
   if (S.confirmedSeq === undefined) S.confirmedSeq = 0;
   // S.catalog complet (sauvegardes antérieures au catalogue : clé absente ou ancien format tableau)

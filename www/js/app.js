@@ -87,6 +87,33 @@ function sortBySlot(pool, tour, slot){
 function defaultSlot(){ return new Date().getHours() < 14 ? "matin" : "soir"; }
 const SLOT_LBL = { matin:{ic:"☀️",lbl:"Matin"}, soir:{ic:"🌙",lbl:"Soir"} };
 
+/* Informations contextuelles du patient — chacune peut figurer ou non dans la relève.
+   p.infos = [{ id, type, txt, show }] ; le champ p.ctx historique est migré en "atcd". */
+const INFO_TYPES = {
+  acces:    { ic:"🔑",   lbl:"Accès & domicile", col:"var(--accent)",
+              ph:"Code portail, clé sous le pot, 3e étage sans ascenseur, chien…" },
+  vigilance:{ ic:"⚠️",   lbl:"Vigilance",        col:"var(--amber)",
+              ph:"Allergie, risque de chute, contre-indication…" },
+  atcd:     { ic:"📋",   lbl:"Antécédents",      col:"var(--dim)",
+              ph:"HTA, diabète, PTH droite 2019…" },
+  entourage:{ ic:"👨‍👩‍👧", lbl:"Entourage",        col:"var(--dim)",
+              ph:"Fille présente le week-end, aide à domicile le matin…" },
+  autre:    { ic:"📌",   lbl:"Autre",            col:"var(--dim)",
+              ph:"Toute autre information utile…" }
+};
+function infoType(t){ return INFO_TYPES[t] || INFO_TYPES.autre; }
+/* Informations à faire figurer dans la relève */
+function shownInfos(p){ return (p.infos||[]).filter(i => i.show && (i.txt||"").trim()); }
+
+/* Icône d'un document selon son type */
+function docIcon(d){
+  const m = (d && d.mime) || "", n = ((d && d.name) || "").toLowerCase();
+  if (m.startsWith("image/")) return "🖼️";
+  if (m === "application/pdf" || n.endsWith(".pdf")) return "📄";
+  if (/word|opendocument\.text|rtf/.test(m) || /\.(docx?|odt|rtf)$/.test(n)) return "📝";
+  return "📎";
+}
+
 const PATIENT_TAGS = {
   surveiller:  { ic:"👁️", lbl:"À surveiller" },
   prioritaire: { ic:"🔴", lbl:"Prioritaire" },
@@ -534,6 +561,16 @@ function migrate(){
   if (!S.syncHistory) S.syncHistory = [];      // fusions reçues + snapshots (garde-fou)
   if (S.changeSeq === undefined) S.changeSeq = 0;
   if (!S.noVisit) S.noVisit = {};
+  // Migration du champ « contexte » vers les informations subdivisées.
+  // L'ancien texte devient un antécédent, masqué de la relève par défaut :
+  // il n'apparaîtra plus comme une vigilance.
+  (S.patients||[]).forEach(p => {
+    if (!p.infos){
+      p.infos = [];
+      if ((p.ctx||"").trim())
+        p.infos.push({ id:uid(), type:"atcd", txt:p.ctx.trim(), show:false });
+    }
+  });
   if (S.lastSentSeq === undefined) S.lastSentSeq = 0;
   if (S.confirmedSeq === undefined) S.confirmedSeq = 0;
   // S.catalog complet (sauvegardes antérieures au catalogue : clé absente ou ancien format tableau)
@@ -1135,7 +1172,9 @@ function inlineForm(p){
       ${Object.keys(p.contacts||{}).length ? `<button class="tool" data-annuaire="${p.id}" style="flex:1 1 30%">📞 Appels</button>` : ""}
       <button class="tool" data-edit="${p.id}" style="flex:1 1 30%">✏️ Fiche</button>
     </div>
-    ${p.ctx ? `<div class="small" style="background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 10px 10px 0;padding:8px 12px">⚠ ${esc(p.ctx)}</div>` : ""}
+    ${shownInfos(p).map(it => { const T=infoType(it.type);
+      return `<div class="small" style="background:rgba(127,127,127,.07);border-left:3px solid ${T.col};border-radius:0 10px 10px 0;padding:7px 11px;margin-bottom:5px">${T.ic} ${esc(it.txt)}</div>`;
+    }).join("")}
     ${S.slotsEnabled ? `<div class="chips" data-slotrow style="margin:6px 0">
       <button class="chip ${(_curSlot||defaultSlot())==="matin"?"on":""}" data-slot="matin" style="flex:1;justify-content:center">☀️ Matin</button>
       <button class="chip ${(_curSlot||defaultSlot())==="soir"?"on":""}" data-slot="soir" style="flex:1;justify-content:center">🌙 Soir</button>
@@ -1795,6 +1834,7 @@ function sheetTours(){
 <p class="small" style="margin-bottom:8px">Tape le bouton <b>🦗 cigale</b> (en haut à gauche) → réglages, tournées et archives. Le <b>🗺️</b> reste devant la gestion des cabinets à l'intérieur. Ajoute une tournée par cabinet. Rattache un patient à son cabinet depuis <b>sa fiche</b> : il restera visible dans l'écran <b>👥</b> même s'il est temporairement hors tournée (hospitalisation, absence) — tu pourras le recocher en un tap. Utilise <b>👥</b> pour composer la tournée et régler l'<b>ordre de passage</b> : la case ✓ affecte, la poignée <b>☰</b> déplace (tape ☰ puis la ligne de destination), les flèches ↑↓ ajustent. Le filtre 👁️ n'affiche que les patients de la tournée.</p>
 
 <div class="cat-head">🧑 Créer un dossier patient</div>
+<p class="small" style="margin-bottom:8px"><b>Contexte &amp; informations</b> : chaque information (code d'accès, allergie, antécédents, entourage) est une ligne à part, avec son <b>type</b> — tape l'icône pour en changer — et son <b>interrupteur</b> : <b>relève</b> = elle figure sur chaque relève de ce patient · <b>fiche</b> = consultable ici seulement. Tu règles ça <b>une fois</b>, pas à chaque relève. Ainsi le code du portail accompagne toujours tes transmissions, tandis que les antécédents restent dans la fiche sans encombrer la relève.</p>
 <p class="small" style="margin-bottom:8px">Tape <b>＋</b> → nom, prénom, date de naissance, tournée(s). <b>Adresse</b> : active le GPS. <b>Annuaire</b> : médecin, famille, pharmacie → appel direct. <b>Seuils perso</b> : adapte les alertes de constantes à ce patient.</p>
 
 <div class="cat-head">✅ Saisir un passage</div>
@@ -1934,9 +1974,11 @@ function sheetPatient(p){
         `<button class="chip ${(p.tours||[]).includes(t)||(isNew&&S.curTour===t)?"on":""}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>
     <div class="field"><span class="lab">Adresse (pour GPS)</span>
       <input id="f-addr" placeholder="12 rue des Lilas, 13100 Aix-en-Provence" value="${esc(p.address||'')}"></div>
-    <div class="field"><span class="lab">Contexte / vigilances permanentes</span>
-      <div class="micwrap"><textarea id="f-ctx" placeholder="Antécédents utiles, aidants, accès au domicile…">${esc(p.ctx||"")}</textarea>
-      <button class="mic" id="f-mic">🎤</button></div></div>
+    <div class="field"><span class="lab">Contexte &amp; informations</span>
+      <p class="small muted" style="margin-bottom:8px">Chaque information a son type et son interrupteur : <b>relève</b> = elle figure sur chaque relève de ce patient · <b>fiche</b> = consultable ici seulement.</p>
+      <div id="f-infos"></div>
+      <button class="btn btn-ghost" id="f-info-add" style="width:100%;margin-top:6px;border-style:dashed;font-size:13px">＋ Ajouter une information</button>
+    </div>
     <div class="field">
       <span class="lab">Seuils d'alerte personnalisés <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(laisser vide = seuils globaux)</span></span>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -2032,7 +2074,54 @@ function sheetPatient(p){
       }, 80);
     }
   };
-  $("#f-mic").onclick = e => { e.preventDefault(); dictate($("#f-ctx"), $("#f-mic")); };
+  /* ── Informations contextuelles ── */
+  let infos = JSON.parse(JSON.stringify(p.infos || []));
+  const drawInfos = () => {
+    const box = $("#f-infos"); if (!box) return;
+    box.innerHTML = infos.length ? infos.map((it,i)=>{
+      const T = infoType(it.type);
+      return `<div class="info-row ${it.show?"on":""}" style="border-left-color:${it.show?T.col:"var(--border)"}">
+        <button class="info-ic" data-ityp="${i}" title="Changer le type">${T.ic}</button>
+        <div class="info-body">
+          <div class="info-lbl" style="color:${it.show?T.col:"var(--faint)"}">${esc(T.lbl)}</div>
+          <textarea class="info-txt" data-itxt="${i}" rows="1" placeholder="${esc(T.ph)}">${esc(it.txt||"")}</textarea>
+        </div>
+        <div class="info-sw">
+          <button class="sw ${it.show?"on":""}" data-ishow="${i}" title="Afficher dans la relève"><span></span></button>
+          <span class="sw-l" style="color:${it.show?T.col:"var(--faint)"}">${it.show?"relève":"fiche"}</span>
+          <button class="info-del" data-idel="${i}" title="Supprimer">✕</button>
+        </div>
+      </div>`;
+    }).join("") : `<p class="small muted" style="padding:6px 0">Aucune information. Ajoute le code d'accès, une vigilance, des antécédents…</p>`;
+
+    box.querySelectorAll("[data-itxt]").forEach(t => {
+      const auto = () => { t.style.height="auto"; t.style.height=Math.min(t.scrollHeight+2,140)+"px"; };
+      auto();
+      t.oninput = () => { infos[+t.dataset.itxt].txt = t.value; auto(); };
+    });
+    box.querySelectorAll("[data-ishow]").forEach(b => b.onclick = e => {
+      e.preventDefault(); const i=+b.dataset.ishow; infos[i].show = !infos[i].show; drawInfos();
+    });
+    box.querySelectorAll("[data-idel]").forEach(b => b.onclick = e => {
+      e.preventDefault(); infos.splice(+b.dataset.idel,1); drawInfos();
+    });
+    box.querySelectorAll("[data-ityp]").forEach(b => b.onclick = e => {
+      e.preventDefault();
+      const i = +b.dataset.ityp;
+      const keys = Object.keys(INFO_TYPES);
+      infos[i].type = keys[(keys.indexOf(infos[i].type)+1) % keys.length];
+      drawInfos();
+    });
+  };
+  drawInfos();
+  const addInfo = $("#f-info-add");
+  if (addInfo) addInfo.onclick = e => {
+    e.preventDefault();
+    infos.push({ id:uid(), type:"acces", txt:"", show:true });
+    drawInfos();
+    const last = $("#f-infos").querySelector("[data-itxt]:last-of-type");
+    setTimeout(()=>{ const ts=$$("#f-infos [data-itxt]"); if(ts.length) ts[ts.length-1].focus(); }, 60);
+  };
   $("#f-cancel").onclick = closeSheet;
   $("#f-save").onclick = () => {
     const nom=$("#f-nom").value.trim(), prenom=$("#f-prenom").value.trim();
@@ -2050,7 +2139,9 @@ function sheetPatient(p){
       address: ($("#f-addr")?.value||"").trim(),
       thresholds: Object.keys(thresholds).length ? thresholds : undefined,
       contacts,
-      ctx:$("#f-ctx").value.trim(), plan:planList(),
+      infos: infos.filter(i => (i.txt||"").trim()).map(i => ({ ...i, txt:i.txt.trim() })),
+      ctx: (infos.find(i=>i.type==="atcd")?.txt || "").trim(),   // compat ascendante
+      plan:planList(),
       tours: $$("#f-tours .chip.on").map(c=>c.dataset.t) };
     if (isNew){
       const np = { id:uid(), docs:[], visits:[], bilans:[], archived:null, ...data };
@@ -2099,11 +2190,7 @@ function sheetDocs(pid){
     ${(p.docs||[]).some(d=>d.mime&&d.mime.startsWith("image/"))
       ? '<button class="btn btn-ghost" id="d-gal-chrono" style="margin-bottom:10px">🖼️ Galerie chronologique des photos</button>'
       : ""}
-    <div class="rowb" style="margin-top:6px;gap:8px">
-      <button class="btn btn-ghost" id="d-pdf"   style="flex:1">📄 PDF</button>
-      <button class="btn btn-ghost" id="d-gal"   style="flex:1">🖼️ Galerie</button>
-      <button class="btn btn-primary" id="d-cam" style="flex:1">📷 Photo</button>
-    </div>`);
+    <button class="btn btn-primary" id="d-add" style="width:100%;margin-top:6px;font-size:15px">＋ Ajouter un document</button>`);
   renderDocs(pid);
   // Charger les thumbnails depuis IDB après le rendu
   (p.docs||[]).filter(d=>d.mime&&d.mime.startsWith("image/")).forEach(d=>{
@@ -2111,9 +2198,35 @@ function sheetDocs(pid){
     if(img) idbGet("doc_"+d.id).then(data=>{ if(data&&img) img.src=data; }).catch(()=>{});
   });
   const galBtn=$("#d-gal-chrono"); if(galBtn) galBtn.onclick=()=>sheetGalerie(pid);
-  $("#d-pdf").onclick = () => { docTargetPid = pid; docReplaceId = null; $("#docfile").click(); };
-  $("#d-gal").onclick = () => { docTargetPid = pid; docReplaceId = null; $("#galleryfile").click(); };
-  $("#d-cam").onclick = () => { docTargetPid = pid; docReplaceId = null; $("#camerafile").click(); };
+  $("#d-add").onclick = () => sheetAddDoc(pid);
+}
+
+/* ---------- Choisir la provenance du document ---------- */
+function sheetAddDoc(pid, replaceId){
+  const SRC = [
+    ["camerafile",  "📷", "Photo",   "Prendre maintenant"],
+    ["galleryfile", "🖼️", "Galerie", "Photo existante"],
+    ["docfile",     "📄", "PDF",     "Ordonnance, bilan"],
+    ["wordfile",    "📝", "Word",    "Modifiable"]
+  ];
+  openSheet(`
+    <h3>＋ ${replaceId ? "Remplacer le document" : "Ajouter un document"}</h3>
+    <p class="small muted" style="margin-bottom:14px">D'où vient le document ?</p>
+    <div class="srcgrid">
+      ${SRC.map(([id,ic,lbl,sub])=>`
+        <button class="srcbtn" data-src="${id}">
+          <span class="src-ic">${ic}</span>
+          <span class="src-lbl">${lbl}</span>
+          <span class="src-sub">${sub}</span>
+        </button>`).join("")}
+    </div>
+    <button class="btn btn-ghost" id="src-cancel" style="width:100%;margin-top:12px">Annuler</button>`);
+  $$("#sheet [data-src]").forEach(b => b.onclick = () => {
+    docTargetPid = pid; docReplaceId = replaceId || null;
+    closeSheet();
+    setTimeout(() => { const el = document.getElementById(b.dataset.src); if (el) el.click(); }, 120);
+  });
+  $("#src-cancel").onclick = () => sheetDocs(pid);
 }
 function docAgeMonths(d){
   if (!d.date) return 0;
@@ -2128,7 +2241,7 @@ function renderDocs(pid){
     const age = docAgeMonths(d);
     return `
     <div class="doc" data-open="${d.id}">
-      ${d.mime&&d.mime.startsWith("image/") ? `<img id="dthumb-${esc(d.id)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px">` : `<span class="ic">📄</span>`}
+      ${d.mime&&d.mime.startsWith("image/") ? `<img id="dthumb-${esc(d.id)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px">` : `<span class="ic">${docIcon(d)}</span>`}
       <span class="dn">${esc(d.name.length>22?d.name.slice(0,22)+"…":d.name)}</span>
       <button class="rep" data-repdoc="${d.id}" title="Remplacer (validité remise à zéro)">🔁</button>
       <button class="del" data-deldoc="${d.id}" title="Supprimer">✕</button>
@@ -2245,7 +2358,7 @@ async function handleDocFile(e) {
   };
   rd.readAsDataURL(blob);
 }
-["docfile","galleryfile","camerafile"].forEach(id => {
+["docfile","galleryfile","camerafile","wordfile"].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("change", handleDocFile);
 });
@@ -2270,7 +2383,7 @@ function viewDoc(d){
       const blob=new Blob([arr],{type:d.mime||"application/octet-stream"});
       const url=URL.createObjectURL(blob);
       ov.innerHTML = `<div class="dv-wrap" style="text-align:center;padding:30px">
-        <p style="color:#fff;font-size:16px">📄 ${esc(d.name)}</p>
+        <p style="color:#fff;font-size:16px">${docIcon(d)} ${esc(d.name)}</p>
         <a href="${url}" download="${esc(d.name)}" class="btn btn-primary" style="display:inline-block;margin-top:16px;text-decoration:none">Télécharger</a>
         <button class="dv-close" style="display:block;margin:12px auto">✕ Fermer</button>
       </div>`;
@@ -3163,7 +3276,8 @@ function sheetSyntheseCiblee(start, end, tour){
       <div style="max-height:32vh;overflow-y:auto;margin-bottom:12px">
         ${pool.map(p=>`<button class="selv" data-sp="${esc(p.id)}" style="width:100%;text-align:left">
           <span class="box">${sel[p.id]?"✓":""}</span>
-          <span class="sv">${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}${p.ctx?` — ${esc(p.ctx)}`:""}</span>
+          <span class="sv">${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}${
+      shownInfos(p).length ? ` — ${esc(shownInfos(p).map(i=>i.txt).join(" · ").slice(0,60))}` : ""}</span>
         </button>`).join("")}
       </div>
 
@@ -3217,7 +3331,9 @@ function buildSyntheseCiblee(patients, start, end, inc){
     out += "\u2502 \uD83D\uDC64 " + p.nom.replace("Demo-","").toUpperCase() + " " + p.prenom
          + (ageOf(p.dob)!=null ? ", "+ageOf(p.dob)+" ans" : "") + "\n";
     out += "\u2514" + "\u2500".repeat(37) + "\n";
-    if (p.ctx) out += "\u26A0\uFE0F  " + p.ctx + "\n";
+    shownInfos(p).forEach(it => {
+      out += "  " + infoType(it.type).ic + " " + it.txt.replace(/\n+/g," \u00B7 ") + "\n";
+    });
 
     const plan = p.plan || [];
     let planTenu = false; const evts = [], cst = [], nts = [];
@@ -3479,7 +3595,9 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
     body += "\n┌─────────────────────────────────────\n";
     body += "│ 👤 " + pNom + pAge + pGenre + "\n";
     body += "└─────────────────────────────────────\n";
-    if (p.ctx) body += "⚠️  " + p.ctx + "\n";
+    shownInfos(p).forEach(it => {
+      body += "  " + infoType(it.type).ic + " " + it.txt.replace(/\n+/g," · ") + "\n";
+    });
     if ((p.tags||[]).length) body += "🏷️ " + p.tags.map(t=>PATIENT_TAGS[t]?PATIENT_TAGS[t].ic+" "+PATIENT_TAGS[t].lbl:t).join(" · ") + "\n";
 
     if (layout === "structure"){
@@ -3965,10 +4083,37 @@ function showReport(text, opts, keepExtras){
   const baseName = "Releve_JMSante_"+label+"_"+(opts.start||todayISO());
   const pool = relevePool(tour);
 
-  // Docs disponibles depuis IDB
+  // Documents disponibles, regroupés par patient.
+  // On ne propose que les patients qui figurent réellement dans la relève :
+  // inutile d'afficher les documents de quelqu'un qui n'y apparaît pas.
+  const inReport = new Set();
+  try {
+    (text||"").split(/\n(?=┌)/).forEach(part => {
+      const nl = part.split("\n").find(l => l.includes("👤"));
+      if (nl) inReport.add(nl.replace(/[│┌└─👤]/g,"").trim().toLowerCase());
+    });
+  } catch(e){}
+  const inReleve = p => {
+    if (!inReport.size) return true;            // sécurité : si le parsing échoue, on montre tout
+    const n = (p.nom.replace("Demo-","").toUpperCase()+" "+p.prenom).toLowerCase();
+    const n2 = (p.prenom+" "+p.nom.replace("Demo-","").toUpperCase()).toLowerCase();
+    return [...inReport].some(x => x.includes(n.split(",")[0]) || x.includes(n2.split(",")[0])
+                                || n.includes(x.split(",")[0]) || n2.includes(x.split(",")[0]));
+  };
+
   const docMeta = [];
-  pool.forEach(p => (p.docs||[]).forEach(d =>
-    docMeta.push({ p, d, label: p.nom.replace("Demo-","").toUpperCase()+" — "+d.name+(d.date?" ("+fmtFR(d.date)+")":"") })));
+  const docGroups = [];                          // [{ p, items:[{i, d}] }]
+  pool.forEach(p => {
+    const docs = p.docs || [];
+    if (!docs.length || !inReleve(p)) return;
+    const items = [];
+    docs.forEach(d => {
+      const i = docMeta.length;
+      docMeta.push({ p, d, label: p.nom.replace("Demo-","").toUpperCase()+" — "+d.name+(d.date?" ("+fmtFR(d.date)+")":"") });
+      items.push({ i, d });
+    });
+    docGroups.push({ p, items });
+  });
 
   let fmt = "txt";
   const checked = new Set();
@@ -3989,12 +4134,19 @@ function showReport(text, opts, keepExtras){
     </div>
     ${docMeta.length ? `<div class="field">
       <span class="lab">📎 Docs à joindre</span>
-      <div class="small muted" style="margin-bottom:6px">Photos/PDF → intégrés dans PDF/HTML · envoyés séparément pour Texte/Word</div>
-      <div id="attlist" style="max-height:18vh;overflow-y:auto">
-        ${docMeta.map((x,i)=>`<button class="selv" data-att="${i}">
-          <span class="box"></span>
-          <span class="sv">${esc(x.label)}</span>
-        </button>`).join("")}
+      <div class="small muted" style="margin-bottom:8px">Choisis document par document. Photos et PDF sont intégrés dans les formats PDF/HTML, et envoyés en pièces jointes pour Texte/Word.</div>
+      <div id="attlist" style="max-height:34vh;overflow-y:auto">
+        ${docGroups.map(g=>`
+          <div class="doc-grp">
+            <div class="doc-grp-h">
+              <span>👤 ${esc(g.p.nom.replace("Demo-","").toUpperCase())} ${esc(g.p.prenom)}</span>
+              ${g.items.length>1?`<button class="chip doc-all" data-attall="${g.items.map(x=>x.i).join(",")}" style="font-size:11px">Tout</button>`:""}
+            </div>
+            ${g.items.map(({i,d})=>`<button class="selv" data-att="${i}">
+              <span class="box"></span>
+              <span class="sv">${/^image\//.test(d.mime||"")?"🖼":"📄"} ${esc(d.name)}${d.date?` <span class="small muted">${fmtFR(d.date)}</span>`:""}</span>
+            </button>`).join("")}
+          </div>`).join("")}
       </div></div>` : ""}
     <button class="btn btn-primary" id="rp-send" style="width:100%;margin-top:12px;font-size:15px">
       📤 Envoyer<span id="rp-count"></span>
@@ -4033,11 +4185,29 @@ function showReport(text, opts, keepExtras){
     const n = checked.size;
     $("#rp-count").textContent = n ? " + "+n+" doc"+(n>1?"s":"") : "";
   };
+  const paintAtt = () => {
+    $$("#attlist [data-att]").forEach(b => {
+      const on = checked.has(+b.dataset.att);
+      b.classList.toggle("on", on);
+      b.querySelector(".box").textContent = on ? "✓" : "";
+    });
+    $$("#attlist [data-attall]").forEach(b => {
+      const ids = b.dataset.attall.split(",").map(Number);
+      b.classList.toggle("on", ids.every(i => checked.has(i)));
+    });
+    updCount();
+  };
   $$("#attlist [data-att]").forEach(b => b.onclick = () => {
     const i = +b.dataset.att;
     checked.has(i) ? checked.delete(i) : checked.add(i);
-    b.classList.toggle("on"); b.querySelector(".box").textContent = checked.has(i)?"✓":"";
-    updCount();
+    paintAtt();
+  });
+  // « Tout » : coche ou décoche tous les documents de CE patient
+  $$("#attlist [data-attall]").forEach(b => b.onclick = () => {
+    const ids = b.dataset.attall.split(",").map(Number);
+    const allOn = ids.every(i => checked.has(i));
+    ids.forEach(i => allOn ? checked.delete(i) : checked.add(i));
+    paintAtt();
   });
 
   // ── Charger un doc depuis IDB ──
@@ -4517,7 +4687,7 @@ async function shareFeuilleRoute(){
   const rows = sorted.map((p,i)=>`
     <tr>
       <td class="num">${i+1}</td>
-      <td><b>${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}</b>${p.ctx?`<br><span class="ctx">⚠ ${esc(p.ctx)}</span>`:""}
+      <td><b>${esc(p.nom.replace("Demo-","").toUpperCase())} ${esc(p.prenom)}</b>${shownInfos(p).map(it=>`<br><span class="ctx">${infoType(it.type).ic} ${esc(it.txt)}</span>`).join("")}
         ${(p.tags||[]).length?`<br><span class="tags">${p.tags.map(t=>PATIENT_TAGS[t]?PATIENT_TAGS[t].ic+" "+PATIENT_TAGS[t].lbl:t).join(" · ")}</span>`:""}</td>
       <td>${esc(p.address||"—")}</td>
       <td>${(p.plan||[]).map(esc).join("<br>")||"—"}</td>
@@ -5301,7 +5471,9 @@ function renderSeq(){
     <button class="btn btn-ghost" id="sq-skip" style="width:100%;margin-bottom:10px;font-size:13.5px">
       🚫 Pas de passage prévu aujourd'hui — patient suivant
     </button>
-    ${p.ctx?`<div class="small" style="background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 10px 10px 0;padding:8px 12px;margin-bottom:10px">⚠ ${esc(p.ctx)}</div>`:""}
+    ${shownInfos(p).map(it => { const T=infoType(it.type);
+      return `<div class="small" style="background:rgba(127,127,127,.07);border-left:3px solid ${T.col};border-radius:0 10px 10px 0;padding:8px 12px;margin-bottom:8px">${T.ic} ${esc(it.txt)}</div>`;
+    }).join("")}
     <div id="seq-form"></div>`;
 
   // Formulaire inline

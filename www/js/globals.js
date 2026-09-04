@@ -86,6 +86,33 @@ function sortBySlot(pool, tour, slot){
 function defaultSlot(){ return new Date().getHours() < 14 ? "matin" : "soir"; }
 const SLOT_LBL = { matin:{ic:"☀️",lbl:"Matin"}, soir:{ic:"🌙",lbl:"Soir"} };
 
+/* Informations contextuelles du patient — chacune peut figurer ou non dans la relève.
+   p.infos = [{ id, type, txt, show }] ; le champ p.ctx historique est migré en "atcd". */
+const INFO_TYPES = {
+  acces:    { ic:"🔑",   lbl:"Accès & domicile", col:"var(--accent)",
+              ph:"Code portail, clé sous le pot, 3e étage sans ascenseur, chien…" },
+  vigilance:{ ic:"⚠️",   lbl:"Vigilance",        col:"var(--amber)",
+              ph:"Allergie, risque de chute, contre-indication…" },
+  atcd:     { ic:"📋",   lbl:"Antécédents",      col:"var(--dim)",
+              ph:"HTA, diabète, PTH droite 2019…" },
+  entourage:{ ic:"👨‍👩‍👧", lbl:"Entourage",        col:"var(--dim)",
+              ph:"Fille présente le week-end, aide à domicile le matin…" },
+  autre:    { ic:"📌",   lbl:"Autre",            col:"var(--dim)",
+              ph:"Toute autre information utile…" }
+};
+function infoType(t){ return INFO_TYPES[t] || INFO_TYPES.autre; }
+/* Informations à faire figurer dans la relève */
+function shownInfos(p){ return (p.infos||[]).filter(i => i.show && (i.txt||"").trim()); }
+
+/* Icône d'un document selon son type */
+function docIcon(d){
+  const m = (d && d.mime) || "", n = ((d && d.name) || "").toLowerCase();
+  if (m.startsWith("image/")) return "🖼️";
+  if (m === "application/pdf" || n.endsWith(".pdf")) return "📄";
+  if (/word|opendocument\.text|rtf/.test(m) || /\.(docx?|odt|rtf)$/.test(n)) return "📝";
+  return "📎";
+}
+
 const PATIENT_TAGS = {
   surveiller:  { ic:"👁️", lbl:"À surveiller" },
   prioritaire: { ic:"🔴", lbl:"Prioritaire" },

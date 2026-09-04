@@ -110,6 +110,23 @@ Partage dynamique des données de tournée entre plusieurs IDEL, **sans serveur*
 
 **Finalisation** : signature manuscrite intégrée aux exports PDF/HTML/Word, et encart de **message libre** en fin de document (signé, horodaté). Les deux sont réinitialisés à chaque nouvelle relève.
 
+### 4.9bis Informations contextuelles — ✅ réalisé (v38)
+L'ancien champ « contexte » ressortait intégralement en **⚠ vigilance** dans la relève, quel que soit son contenu — un antécédent d'arthrose y prenait l'apparence d'une alerte, et un code de portail celle d'une information médicale.
+
+Il est remplacé par une **liste d'informations typées**, chacune portant son propre interrupteur d'affichage :
+
+| Type | Usage | Défaut |
+|---|---|---|
+| 🔑 Accès & domicile | Code portail, clé, étage, chien | — |
+| ⚠️ Vigilance | Allergie, risque de chute, contre-indication | — |
+| 📋 Antécédents | HTA, diabète, interventions | Masqué |
+| 👨‍👩‍👧 Entourage | Aidants, présence familiale | Masqué |
+| 📌 Autre | Divers | — |
+
+Le réglage est **permanent, fait une fois dans la fiche patient** : les informations marquées « relève » accompagnent automatiquement chaque transmission de ce patient. Seule la catégorie **Vigilance** conserve la mise en évidence orange.
+
+**Migration** : l'ancien contenu de `p.ctx` devient un antécédent masqué — aucune donnée perdue, relève immédiatement allégée.
+
 ### 4.10 Cycle de vie du dossier patient — ✅ réalisé (v38)
 Quatre états distincts, du plus léger au plus définitif :
 
@@ -217,6 +234,10 @@ Données traitées : identité patient minimale (nom, prénom, date de naissance
 | Ordre de passage dans la relève | Tri selon la séquence configurée (référence : ordre du matin) | ✅ Fait (v36) |
 | Passages non effectués | Marquage du jour « pas de passage prévu » : pastille dédiée, exclu du compteur « À voir », filtre propre | ✅ Fait (v38) |
 | Fin de prise en charge | Clôture datée et motivée, sortie automatique des tournées, mention dans la relève, conservation 3/6/9/12 mois, suppression définitive à double validation | ✅ Fait (v38) |
+| Contexte subdivisé | Informations typées (accès, vigilance, antécédents, entourage, autre) avec choix individuel d'affichage dans la relève, réglé une fois dans la fiche | ✅ Fait (v38) |
+| Documents Word | Ajout de .docx/.doc/.odt/.rtf en plus des photos et PDF ; icône dédiée, pièce jointe séparée dans les relèves | ✅ Fait (v38) |
+| Ajout de document en 2 temps | Un bouton « ＋ Ajouter un document » puis choix de la provenance (Photo · Galerie · PDF · Word) en grille 2 × 2 | ✅ Fait (v38) |
+| Sélection des documents | Regroupement par patient, choix document par document, seuls les patients présents dans la relève sont proposés | ✅ Fait (v38) |
 | Mode d'emploi embarqué | Manuel illustré téléchargeable depuis l'app (HTML ou impression PDF) | ✅ Fait (v38) |
 | Identité visuelle | Logo cigale (icône SVG adaptative + logo grand format), slogan « Tout est dans la cigale », signature JmCve83 / Toulon production | ✅ Fait (v37) |
 | Pas de passage prévu | Sauter un patient dans le déroulé sans l'inclure dans la relève | ✅ Fait (v31) |

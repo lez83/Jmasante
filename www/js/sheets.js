@@ -779,9 +779,19 @@ async function handleDocFile(e) {
     $("#doc-ok").onclick = () => {
       const p = getP(pid);
       if (repId){
-        const d = p.docs.find(x=>x.id===repId);
-        if (d) Object.assign(d, { name:finalName, mime:finalMime, date:todayISO(), data:dataUrl });
-        toast("Document remplacé — validité repartie de zéro 🔁");
+        // Le contenu va dans IDB (clé doc_<id>), JAMAIS dans la fiche patient :
+        // sinon idbGet ne le retrouve pas et l'aperçu affiche « introuvable ».
+        idbSet("doc_"+repId, dataUrl).then(()=>{
+          const d = p.docs.find(x=>x.id===repId);
+          if (d){
+            delete d.data;                      // purge d'un éventuel reliquat
+            Object.assign(d, { name:finalName, mime:finalMime, date:todayISO() });
+            if (typeof logChange==="function") logChange("update","doc", pid+"|"+repId, d);
+          }
+          save(); renderDocs(pid);
+          toast("Document remplacé — validité repartie de zéro 🔁");
+        }).catch(e => toast("Échec stockage : "+e.message, "danger"));
+        return;
       } else {
         const docId = uid();
         // Stocker les données brutes dans IDB séparée (évite la saturation du state chiffré)
@@ -814,10 +824,29 @@ function viewDoc(d){
     <button class="dv-close" style="position:fixed;top:20px;right:20px;font-size:28px;background:none;border:none;color:#fff;cursor:pointer">✕</button>
   </div>`;
   ov.querySelector(".dv-close").onclick = closeAll;
+  // Filet de sécurité : un tap sur le fond ferme toujours la visionneuse
+  ov.onclick = e => { if (e.target === ov) closeAll(); };
 
-  idbGet("doc_"+d.id).then(data => {
+  idbGet("doc_"+d.id).then(async data => {
+    // Récupération des documents cassés par l'ancien bug de remplacement :
+    // le contenu avait atterri dans la fiche (d.data) au lieu d'IDB.
+    if (!data && d.data){
+      try { await idbSet("doc_"+d.id, d.data); data = d.data; delete d.data; save(); }
+      catch(e){ data = d.data; }
+    }
     if (!data){
-      ov.innerHTML = `<div style="color:#fff;padding:40px;text-align:center">📎 Document introuvable.<br><small>Essaie de réouvrir le dossier.</small></div>`;
+      ov.innerHTML = `<div class="dv-wrap" style="text-align:center;padding:34px 24px">
+        <div style="font-size:46px;line-height:1;margin-bottom:12px">📎</div>
+        <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 8px">Contenu introuvable</p>
+        <p style="color:#9fb0ab;font-size:13px;line-height:1.55;margin:0 0 20px;max-width:290px;margin-inline:auto">
+          La fiche mentionne « ${esc(d.name)} » mais son contenu n'est plus sur cet appareil.
+          Cela arrive si le document vient d'une sauvegarde ou d'une synchro : seules les
+          références sont transmises, pas les fichiers eux-mêmes.</p>
+        <div class="dv-bar" style="position:static;padding:0;background:none">
+          <button class="btn btn-primary dv-close">Fermer</button>
+        </div>
+      </div>`;
+      ov.querySelectorAll(".dv-close").forEach(b => b.onclick = closeAll);
       return;
     }
 
@@ -868,7 +897,10 @@ function viewDoc(d){
     ov.querySelectorAll(".dv-open").forEach(b => b.onclick = () => openDocExternal(d, data));
     ov.querySelectorAll(".dv-share").forEach(b => b.onclick = () => shareDoc(d, data));
   }).catch(e => {
-    ov.innerHTML = `<div style="color:#fff;padding:40px">Erreur : ${e.message}</div>`;
+    ov.innerHTML = `<div class="dv-wrap" style="text-align:center;padding:34px 24px">
+      <p style="color:#fff;font-size:15px;margin:0 0 18px">Impossible d'ouvrir le document.<br><small style="color:#9fb0ab">${esc(e.message||"")}</small></p>
+      <button class="btn btn-primary dv-close">Fermer</button></div>`;
+    ov.querySelectorAll(".dv-close").forEach(b => b.onclick = closeAll);
   });
 }
 

@@ -275,6 +275,16 @@ d'un overlay le fait avorter).
 les .docx partent en **pièce jointe séparée** dans toutes les relèves. Ne pas tenter de
 les intégrer aux annexes cliquables.
 
+**Stockage du contenu** — le binaire d'un document va **toujours** dans IndexedDB sous
+`doc_<id>` (via `idbSet`), **jamais** dans la fiche patient. Un bug du remplacement (🔁)
+écrivait `d.data` dans la fiche : `idbGet` ne trouvait rien et l'aperçu affichait
+« document introuvable ». `viewDoc` récupère désormais ces documents cassés à la volée
+(migration de `d.data` vers IDB), mais la règle reste : **le contenu ne va jamais dans le state**.
+
+**Écrans d'erreur** — tout écran de la visionneuse doit contenir un `.dv-close`. Un écran
+d'erreur sans bouton de fermeture piège l'utilisateur (obligé de tuer l'app). Un `ov.onclick`
+sur le fond sert de filet de sécurité supplémentaire.
+
 **Visionneuse** (`viewDoc`) — s'appuie sur le conteneur `#docview` dans `index.html`.
 ⚠️ Ce conteneur avait disparu du HTML : `viewDoc` sortait sur `if (!ov) return`, donc
 **taper un document ne faisait rien**. Vérifier sa présence après toute refonte du HTML.

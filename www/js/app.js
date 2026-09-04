@@ -2366,34 +2366,130 @@ async function handleDocFile(e) {
 function viewDoc(d){
   const ov = document.getElementById("docview");
   if (!ov) return;
-  ov.style.display="flex";
+  ov.style.display = "flex";
+  const closeAll = () => { ov.style.display="none"; ov.innerHTML=""; };
   ov.innerHTML = `<div class="dv-wrap" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
     <div class="muted small" style="color:#fff">Chargement…</div>
     <button class="dv-close" style="position:fixed;top:20px;right:20px;font-size:28px;background:none;border:none;color:#fff;cursor:pointer">✕</button>
   </div>`;
-  ov.querySelector(".dv-close").onclick = () => { ov.style.display="none"; ov.innerHTML=""; };
+  ov.querySelector(".dv-close").onclick = closeAll;
+
   idbGet("doc_"+d.id).then(data => {
-    if (!data){ ov.innerHTML=`<div style="color:#fff;padding:40px;text-align:center">📎 Document introuvable.<br><small>Essaie de réouvrir le dossier.</small></div>`; return; }
+    if (!data){
+      ov.innerHTML = `<div style="color:#fff;padding:40px;text-align:center">📎 Document introuvable.<br><small>Essaie de réouvrir le dossier.</small></div>`;
+      return;
+    }
+
+    /* ── Image : affichage direct ── */
     if (d.mime && d.mime.startsWith("image/")){
-      ov.innerHTML = `<div class="dv-wrap"><img src="${data}" style="max-width:100%;max-height:90vh;object-fit:contain" alt="${esc(d.name)}"><button class="dv-close">✕</button></div>`;
-    } else {
-      // PDF ou autre : proposer le partage
-      const bin=atob(data.split(",")[1]||data), arr=new Uint8Array(bin.length);
-      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-      const blob=new Blob([arr],{type:d.mime||"application/octet-stream"});
-      const url=URL.createObjectURL(blob);
-      ov.innerHTML = `<div class="dv-wrap" style="text-align:center;padding:30px">
-        <p style="color:#fff;font-size:16px">${docIcon(d)} ${esc(d.name)}</p>
-        <a href="${url}" download="${esc(d.name)}" class="btn btn-primary" style="display:inline-block;margin-top:16px;text-decoration:none">Télécharger</a>
-        <button class="dv-close" style="display:block;margin:12px auto">✕ Fermer</button>
+      ov.innerHTML = `<div class="dv-wrap">
+        <img src="${data}" style="max-width:100%;max-height:78vh;object-fit:contain" alt="${esc(d.name)}">
+        <div class="dv-bar">
+          <button class="btn btn-primary dv-share">📤 Partager / Enregistrer</button>
+          <button class="btn btn-ghost dv-close">Fermer</button>
+        </div>
       </div>`;
     }
-    ov.querySelectorAll(".dv-close").forEach(b=>b.onclick=()=>{ ov.style.display="none"; ov.innerHTML=""; });
-  }).catch(e=>{
-    ov.innerHTML=`<div style="color:#fff;padding:40px">Erreur : ${e.message}</div>`;
+
+    /* ── PDF : aperçu intégré, avec repli si le navigateur refuse ── */
+    else if ((d.mime||"").includes("pdf") || /\.pdf$/i.test(d.name||"")){
+      const url = dataToUrl(data, d.mime || "application/pdf");
+      ov.innerHTML = `<div class="dv-wrap dv-full">
+        <div class="dv-head">${docIcon(d)} ${esc(d.name)}</div>
+        <iframe class="dv-frame" src="${url}"></iframe>
+        <div class="dv-bar">
+          <button class="btn btn-primary dv-share">📤 Partager / Enregistrer</button>
+          <button class="btn btn-ghost dv-open">👁 Ouvrir</button>
+          <button class="btn btn-ghost dv-close">Fermer</button>
+        </div>
+      </div>`;
+      const fr = ov.querySelector(".dv-frame");
+      if (fr) fr.onerror = () => { fr.outerHTML = `<div class="dv-noprev">Aperçu indisponible sur cet appareil.<br><small>Utilise « Ouvrir » ou « Partager ».</small></div>`; };
+    }
+
+    /* ── Word et autres : pas d'aperçu possible, on propose les actions ── */
+    else {
+      ov.innerHTML = `<div class="dv-wrap" style="text-align:center;padding:34px 24px">
+        <div style="font-size:52px;line-height:1;margin-bottom:12px">${docIcon(d)}</div>
+        <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 4px">${esc(d.name)}</p>
+        <p style="color:#9fb0ab;font-size:12.5px;margin:0 0 22px">${d.date?fmtFR(d.date):""}${d.date?" · ":""}${docSizeLabel(data)}</p>
+        <p style="color:#8a9a95;font-size:12.5px;line-height:1.5;margin:0 0 20px;max-width:280px;margin-inline:auto">
+          Ce format ne s'affiche pas dans l'app. Ouvre-le dans Word, WPS ou ton lecteur habituel.</p>
+        <div class="dv-bar" style="position:static;padding:0">
+          <button class="btn btn-primary dv-open">👁 Ouvrir</button>
+          <button class="btn btn-ghost dv-share">📤 Partager / Enregistrer</button>
+          <button class="btn btn-ghost dv-close">Fermer</button>
+        </div>
+      </div>`;
+    }
+
+    ov.querySelectorAll(".dv-close").forEach(b => b.onclick = closeAll);
+    ov.querySelectorAll(".dv-open").forEach(b => b.onclick = () => openDocExternal(d, data));
+    ov.querySelectorAll(".dv-share").forEach(b => b.onclick = () => shareDoc(d, data));
+  }).catch(e => {
+    ov.innerHTML = `<div style="color:#fff;padding:40px">Erreur : ${e.message}</div>`;
   });
 }
 
+/* dataURL → URL d'objet (les blobs passent mieux que les data: longues) */
+function dataToUrl(data, mime){
+  try {
+    const b64 = String(data).split(",")[1] || data;
+    const bin = atob(b64), arr = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([arr], { type: mime || "application/octet-stream" }));
+  } catch(e){ return data; }
+}
+function docSizeLabel(data){
+  try {
+    const b64 = String(data).split(",")[1] || data;
+    const ko = Math.round(b64.length * 0.75 / 1024);
+    return ko > 1024 ? (ko/1024).toFixed(1)+" Mo" : ko+" Ko";
+  } catch(e){ return ""; }
+}
+
+/* Ouvrir le document dans l'application système adéquate */
+async function openDocExternal(d, data){
+  const cap = window.Capacitor;
+  if (cap && cap.isNativePlatform && cap.isNativePlatform()){
+    try {
+      const { Filesystem, Share } = cap.Plugins;
+      const FileOpener = cap.Plugins.FileOpener || cap.Plugins.FileOpenerPlugin;
+      const b64 = String(data).split(",")[1] || data;
+      const r = await Filesystem.writeFile({ path: d.name, data: b64, directory: "CACHE" });
+      if (FileOpener && FileOpener.open){
+        await FileOpener.open({ filePath: r.uri, contentType: d.mime || "application/octet-stream" });
+        return;
+      }
+      // Pas de plugin d'ouverture : le partage Android propose « Ouvrir avec »
+      await Share.share({ title: d.name, url: r.uri });
+      return;
+    } catch(e){ if ((e.message||"").match(/cancel/i)) return; console.warn("openDoc:", e); }
+  }
+  const url = dataToUrl(data, d.mime);
+  const w = window.open(url, "_blank");
+  if (!w) toast("Autorise les fenêtres pour ouvrir le document");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/* Partager ou enregistrer le document */
+async function shareDoc(d, data){
+  const cap = window.Capacitor;
+  if (cap && cap.isNativePlatform && cap.isNativePlatform()){
+    try {
+      const { Filesystem, Share } = cap.Plugins;
+      const b64 = String(data).split(",")[1] || data;
+      const r = await Filesystem.writeFile({ path: d.name, data: b64, directory: "CACHE" });
+      await Share.share({ title: d.name, url: r.uri });
+      return;
+    } catch(e){ if ((e.message||"").match(/cancel/i)) return; console.warn("shareDoc:", e); }
+  }
+  const url = dataToUrl(data, d.mime);
+  const a = document.createElement("a");
+  a.href = url; a.download = d.name || "document"; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+  toast("Document enregistré 📤");
+}
 
 function sheetRappels(pid){
   const p = pid ? getP(pid) : null;

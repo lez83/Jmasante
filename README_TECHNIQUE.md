@@ -275,6 +275,19 @@ d'un overlay le fait avorter).
 les .docx partent en **pièce jointe séparée** dans toutes les relèves. Ne pas tenter de
 les intégrer aux annexes cliquables.
 
+**Visionneuse** (`viewDoc`) — s'appuie sur le conteneur `#docview` dans `index.html`.
+⚠️ Ce conteneur avait disparu du HTML : `viewDoc` sortait sur `if (!ov) return`, donc
+**taper un document ne faisait rien**. Vérifier sa présence après toute refonte du HTML.
+
+Trois rendus selon le type : image affichée, PDF en `<iframe>` (avec repli si le navigateur
+refuse), autres formats en écran d'information. Deux actions dans tous les cas :
+`openDocExternal()` (FileOpener si présent, sinon partage Android qui propose « Ouvrir avec »)
+et `shareDoc()` (Filesystem + Share en natif, `<a download>` en web).
+
+⚠️ `.dv-wrap` est en flex **ligne** par défaut (pour centrer une image) : les écrans verticaux
+doivent forcer `flex-direction:column`, et le bouton « Fermer » de la barre doit annuler le
+`position:fixed` hérité de `.dv-close`.
+
 ## Informations contextuelles du patient
 
 ```

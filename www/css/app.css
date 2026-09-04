@@ -755,3 +755,39 @@ body:has(.ios-banner) .install-btn{ bottom:130px; }
 .srcbtn .src-ic{ font-size:26px; line-height:1.1; margin-bottom:3px; }
 .srcbtn .src-lbl{ font-size:13.5px; font-weight:600; }
 .srcbtn .src-sub{ font-size:10.5px; color:var(--faint); }
+
+/* ── Visionneuse de document ── */
+/* .dv-wrap est centré en ligne par défaut : on force la colonne pour nos écrans. */
+.docviewer{ align-items:stretch; padding:0; }
+.dv-wrap{
+  flex-direction:column; width:100%; max-width:100%;
+  align-items:center; justify-content:center; padding:16px;
+  box-sizing:border-box; overflow-y:auto;
+}
+.dv-wrap.dv-full{ justify-content:flex-start; padding:0; height:100%; }
+.dv-head{
+  color:#fff; font-size:14px; font-weight:600; padding:16px 16px 10px;
+  text-align:center; flex-shrink:0; width:100%; box-sizing:border-box;
+}
+.dv-frame{
+  flex:1; width:100%; border:none; background:#fff; min-height:50vh;
+}
+.dv-noprev{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:#c8d8d3; font-size:14px; text-align:center; line-height:1.6; padding:30px;
+}
+.dv-bar{
+  display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+  width:100%; box-sizing:border-box; flex-shrink:0;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));
+  background:rgba(0,0,0,.55); backdrop-filter:blur(6px);
+}
+.dv-wrap.dv-full .dv-bar{ position:sticky; bottom:0; }
+.dv-bar .btn{ flex:1 1 auto; min-width:140px; max-width:100%; }
+
+/* Le bouton Fermer de la barre d'actions n'est PAS le ✕ flottant :
+   il doit rester dans le flux, sinon il se superpose aux autres. */
+.dv-bar .dv-close{
+  position:static !important; width:auto !important; height:auto !important;
+  border-radius:12px !important; top:auto !important; right:auto !important;
+}

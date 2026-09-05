@@ -357,6 +357,11 @@ Annuler   → abandonne (confirmation si des soins/notes sont saisis)
 ✓ Valider → commitVisit() : crée le passage, consomme S.drafts[pid]
 ```
 
+⚠️ **`.btn` porte `width:100%`** — dans un conteneur flex, chaque bouton réclame donc
+toute la largeur et les suivants sortent de l'écran (constaté sur iPhone : seul « Annuler »
+visible). Les barres de plusieurs boutons doivent utiliser une **grille** (`.formbtns`)
+avec des colonnes définies, jamais `flex` + `style="flex:1"`.
+
 `_formDraft` est une variable en mémoire : elle ne survit **pas** à la fermeture de l'app.
 `S.drafts[pid]` est persisté dans le state — c'est ce qui distingue « 💾 Enregistrer » du
 brouillon automatique. À l'ouverture d'une carte, `_formDraft` est réhydraté depuis

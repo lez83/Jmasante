@@ -1291,12 +1291,12 @@ function inlineForm(p){
         <button class="mic" data-mic="1">🎤</button>
       </div>
     </div>
-    <div class="rowb" style="gap:7px">
-      <button class="btn btn-ghost" data-cancel="1" style="flex:0 0 auto;padding-inline:14px">Annuler</button>
-      <button class="btn btn-ghost" data-keep="1" style="flex:1">💾 Enregistrer</button>
-      <button class="btn btn-primary" data-save="1" style="flex:1.3">✓ Valider le passage</button>
+    <div class="formbtns">
+      <button class="btn btn-ghost" data-cancel="1">Annuler</button>
+      <button class="btn btn-ghost" data-keep="1">💾 Enregistrer</button>
+      <button class="btn btn-primary fb-wide" data-save="1">✓ Valider le passage</button>
     </div>
-    <p class="small muted" style="margin-top:6px;text-align:center">💾 conserve ta saisie sans marquer le passage · ✓ enregistre le passage du jour</p>
+    <p class="small muted" style="margin-top:6px;text-align:center">💾 conserve ta saisie sans valider le passage</p>
   </div>`;
 }
 

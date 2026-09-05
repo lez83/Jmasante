@@ -252,10 +252,18 @@ Le document ne contient **que** les patients cochés : c'est une exigence de con
 (un médecin ne doit pas recevoir les données de patients qui ne sont pas les siens), pas un confort.
 
 **État conservé au réaffichage** — `showReport(text, opts, keepExtras)` : quand `keepExtras`
-est vrai (retour depuis 💬 Message ou ✍️ Signer), la **sélection de documents** est restaurée
-depuis `_keepDocs`, sinon elle serait silencieusement perdue. Les cases et le compteur
-doivent refléter cet état dès le rendu (`checked.has(i)` dans le HTML + appel initial à
-`updCount()`), pas seulement au clic.
+est vrai (retour depuis 💬 Message ou ✍️ Signer), **trois** états sont restaurés :
+
+```
+_keepDocs → sélection de documents      (sinon : décochés en silence)
+_keepFmt  → format d'export             (sinon : retour à Texte → mauvais envoi)
+_keepText → texte modifié à la main     (sinon : corrections écrasées)
+```
+
+⚠️ Tout état visible dans l'écran d'aperçu doit **refléter sa valeur dès le rendu HTML**
+(`fmt==="pdf"?"on":""`, `checked.has(i)`) et non seulement au clic — sinon la restauration
+est invisible pour l'utilisateur. Toute nouvelle option de cet écran doit être ajoutée à
+cette liste, et remise à `null` quand `keepExtras` est faux.
 
 **Signature et message de fin** — `_sigData` (dataURL) et `_finalMsg` dans `share.js`,
 **réinitialisés dans `showReport()`** à chaque relève pour éviter de réémettre le mot de la veille.

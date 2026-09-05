@@ -4562,6 +4562,8 @@ async function pdfToImagesGlobal(dataUrl, maxPages=5){
 
 let _lastReport = null; // relève courante, pour la rouvrir après message/signature
 let _keepDocs = null;   // sélection de documents conservée lors d'un réaffichage
+let _keepFmt  = null;   // format d'export conservé lors d'un réaffichage
+let _keepText = null;   // texte modifié à la main, à ne pas régénérer
 
 /* Retire l'encart texte du message : PDF et HTML le rendent eux-mêmes
    avec leur propre mise en forme (sinon il apparaît deux fois, et collé
@@ -4596,7 +4598,7 @@ function richPreview(text){
 function showReport(text, opts, keepExtras){
   // Nouvelle relève → message et signature repartent à zéro.
   // keepExtras=true → simple réaffichage après ajout d'un message/signature.
-  if (!keepExtras){ _finalMsg = ""; _sigData = null; _keepDocs = null; }
+  if (!keepExtras){ _finalMsg = ""; _sigData = null; _keepDocs = null; _keepFmt = null; _keepText = null; }
   _lastReport = { text, opts };
   const { tour } = opts;
   const label = (tour==="all"?"toutes":tour).replace(/\s+/g,"_");
@@ -4635,7 +4637,9 @@ function showReport(text, opts, keepExtras){
     docGroups.push({ p, items });
   });
 
-  let fmt = "txt";
+  // Un réaffichage (retour depuis 💬 Message ou ✍️ Signer) doit conserver
+  // le format choisi — sinon on repart en Texte sans que ce soit visible.
+  let fmt = (keepExtras && _keepFmt) ? _keepFmt : "txt";
   // Un réaffichage (retour depuis 💬 Message ou ✍️ Signer) doit conserver
   // les documents déjà cochés — sinon la sélection est silencieusement perdue.
   const checked = new Set(keepExtras && _keepDocs ? _keepDocs : []);
@@ -4648,10 +4652,10 @@ function showReport(text, opts, keepExtras){
     <div class="field" style="margin-top:10px">
       <span class="lab">Format</span>
       <div class="chips" id="fmt-chips">
-        <button class="chip on" data-fm="txt">🗒️ Texte</button>
-        <button class="chip" data-fm="pdf">📑 PDF <span class="small muted">(photos intégrées)</span></button>
-        <button class="chip" data-fm="html">🌐 HTML <span class="small muted">(photos intégrées)</span></button>
-        <button class="chip" data-fm="docx">📝 Word</button>
+        <button class="chip ${fmt==="txt" ?"on":""}" data-fm="txt">🗒️ Texte</button>
+        <button class="chip ${fmt==="pdf" ?"on":""}" data-fm="pdf">📑 PDF <span class="small muted">(photos intégrées)</span></button>
+        <button class="chip ${fmt==="html"?"on":""}" data-fm="html">🌐 HTML <span class="small muted">(photos intégrées)</span></button>
+        <button class="chip ${fmt==="docx"?"on":""}" data-fm="docx">📝 Word</button>
       </div>
     </div>
     ${docMeta.length ? `<div class="field">
@@ -5171,7 +5175,7 @@ function showReport(text, opts, keepExtras){
     const b = document.getElementById("rp-sig");
     if (b) b.textContent = sig ? "✍️ Signé ✓" : "✍️ Signer";
     else if (_lastReport){
-      _keepDocs = [...checked];
+      _keepDocs = [...checked]; _keepFmt = fmt;
       setTimeout(() => showReport(_lastReport.text, _lastReport.opts, true), 60);
     }
     toast(sig ? "Signature ajoutée aux documents ✓" : "Signature retirée");
@@ -5193,11 +5197,16 @@ function showReport(text, opts, keepExtras){
     const reopen = () => {
       // Régénérer la relève avec le message, puis revenir à l'aperçu
       _keepDocs = [...checked];          // conserver les documents cochés
+      _keepFmt  = fmt;                   // ...et le format choisi
+      // Si l'utilisateur a modifié le texte à la main, ne pas le régénérer :
+      // ses corrections seraient silencieusement écrasées.
+      _keepText = (text !== _lastReport.text) ? text : null;
       closeSheet();
       if (_lastReport){
         const o = _lastReport.opts || {};
         let txt = _lastReport.text;
         try { if (o.regen) txt = o.regen(); } catch(e){}
+        if (_keepText) txt = _keepText;      // corrections manuelles préservées
         setTimeout(() => showReport(txt, o, true), 60);
       }
     };

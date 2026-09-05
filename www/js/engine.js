@@ -211,7 +211,9 @@ function relevePool(tour, start, end){
   // Fins de prise en charge tombant dans la période : le collègue doit être informé
   if (start && end){
     (S.patients||[]).forEach(p => {
-      if (p.pec && !p.archived && p.pec.end >= start && p.pec.end <= end && !pool.some(x=>x.id===p.id))
+      // Inclure même si le dossier a ensuite été archivé : la fin de prise
+      // en charge doit être annoncée au collègue, archivage ou non.
+      if (p.pec && p.pec.end >= start && p.pec.end <= end && !pool.some(x=>x.id===p.id))
         pool.push(p);
     });
   }

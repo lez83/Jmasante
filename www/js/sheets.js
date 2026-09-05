@@ -136,7 +136,12 @@ function sheetPECList(){
       }).join("") : '<p class="muted small" style="padding:10px 0">Aucune prise en charge terminée.</p>'}
     </div>
     <button class="btn btn-ghost" id="pec-back" style="margin-top:12px;width:100%">← Retour</button>`);
-  $$("#sheet [data-pecopen]").forEach(b => b.onclick = () => sheetPatient(b.dataset.pecopen));
+  // sheetPatient attend l'OBJET patient, pas son id : lui passer l'id
+  // ouvrait une fiche vide (interprétée comme « nouveau patient »).
+  $$("#sheet [data-pecopen]").forEach(b => b.onclick = () => {
+    const pp = (S.patients||[]).find(x => x.id === b.dataset.pecopen);
+    if (pp) sheetPatient(pp); else toast("Dossier introuvable", "danger");
+  });
   $$("#sheet [data-pecdel]").forEach(b => b.onclick = () => supprimerPECDefinitif(b.dataset.pecdel));
   $("#pec-back").onclick = sheetTours;
 }
@@ -619,8 +624,32 @@ function sheetArchives(){
       </div>`).join("") || `<p class="muted small" style="padding:8px 0">Aucun dossier archivé.</p>`}</div>
     <button class="btn btn-ghost" id="back-tours" style="margin-top:14px">‹ Retour aux tournées</button>`);
   $$("#archlist [data-rest]").forEach(b => b.onclick = () => {
-    getP(b.dataset.rest).archived = null;
-    save(); toast("Dossier restauré ↩︎"); sheetArchives(); render();
+    const pp = getP(b.dataset.rest);
+    if (!pp){ toast("Dossier introuvable", "danger"); return; }
+    pp.archived = null;
+
+    /* Un dossier peut être archivé ET clôturé (fin de PEC). Ne lever que
+       l'archivage le laissait invisible partout : hors du Moniteur (à cause
+       de la PEC) et hors des Archives (plus archivé). */
+    if (pp.pec){
+      if (!confirm("Ce dossier a aussi une fin de prise en charge (" + fmtFR(pp.pec.end) + ").\n\n" +
+          "OK : reprendre les soins — le patient redevient actif.\n" +
+          "Annuler : le laisser en « prise en charge terminée ».")){
+        save(); toast("Dossier désarchivé — reste en prise en charge terminée");
+        sheetArchives(); render(); return;
+      }
+      delete pp.pec;
+    }
+
+    // Sans tournée, il n'apparaîtrait toujours pas sur le Moniteur
+    if (!(pp.tours||[]).length && S.tours.length){
+      pp.tours = [ S.tours.includes(S.curTour) ? S.curTour : S.tours[0] ];
+      toast("Dossier restauré dans « " + pp.tours[0] + " » ↩︎");
+    } else {
+      toast("Dossier restauré ↩︎");
+    }
+    if (typeof logChange === "function") logChange("update","patient", pp.id, { archived:null, pec:null, tours:pp.tours });
+    save(); sheetArchives(); render();
   });
   $$("#archlist [data-kill]").forEach(b => b.onclick = () => {
     const p = getP(b.dataset.kill);
@@ -658,6 +687,13 @@ function sheetClean(){
 
 /* ---------- Fiche patient (création / édition + plan de soins libre) ---------- */
 function sheetPatient(p){
+  // Tolère un identifiant aussi bien qu'un objet : plusieurs appels
+  // passaient un id, ce qui ouvrait une fiche vide (« nouveau patient »).
+  if (typeof p === "string"){
+    const found = (S.patients||[]).find(x => x.id === p);
+    if (!found){ toast("Dossier introuvable", "danger"); return; }
+    p = found;
+  }
   const isNew = !p;
   p = p || { nom:"", prenom:"", dob:"", ctx:"", plan:[] };
   openSheet(`
@@ -1388,10 +1424,17 @@ function sheetTrash(){
     <button class="btn btn-ghost" id="tr-back" style="margin-top:12px;width:100%">← Retour</button>`);
   $$("#sheet [data-restore]").forEach(b => b.onclick = () => {
     const t = S.trash[+b.dataset.restore];
-    S.patients.push(t.patient);
+    const pp = t.patient;
+    // Un dossier restauré doit redevenir VISIBLE : sans tournée (ou encore
+    // archivé/clôturé), il reviendrait sans apparaître nulle part.
+    pp.archived = null;
+    if (!(pp.tours||[]).length && S.tours.length)
+      pp.tours = [ S.tours.includes(S.curTour) ? S.curTour : S.tours[0] ];
+    S.patients.push(pp);
     S.rappels.push(...(t.rappels||[]));
     S.trash.splice(+b.dataset.restore, 1);
-    save(); render(); sheetTrash(); toast(t.patient.prenom+" restauré ↩︎");
+    save(); render(); sheetTrash();
+    toast(pp.prenom + " restauré" + (pp.pec ? " (prise en charge terminée)" : "") + " ↩︎");
   });
   $$("#sheet [data-purge]").forEach(b => b.onclick = () => {
     const t = S.trash[+b.dataset.purge];

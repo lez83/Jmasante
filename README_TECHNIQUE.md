@@ -474,6 +474,22 @@ S.trash[]                        ← corbeille 30 jours
 **`activeP()` exclut `archived` ET `pec`** — mais les dossiers clôturés restent dans
 `S.patients`, ce qui les garde trouvables par la recherche. Ne jamais les filtrer en amont.
 
+⚠️ **`sheetPatient(p)` accepte un id OU un objet.** Plusieurs appels (liste des PEC,
+recherche, annulations) passaient un identifiant : la fonction le traitait comme « pas de
+patient » et ouvrait une **fiche vide** intitulée « Nouveau patient ». La conversion est
+maintenant faite en tête de fonction.
+
+⚠️ **Restaurer un dossier doit le rendre VISIBLE.** Trois conditions le masquent
+indépendamment : `archived`, `pec`, et l'absence de tournée. Ne lever que l'archivage
+laissait le patient invisible partout — ni au Moniteur (à cause de la PEC ou du manque de
+tournée), ni dans les Archives (plus archivé). La restauration lève l'archivage, propose de
+reprendre la prise en charge, et réaffecte une tournée si `p.tours` est vide. Vaut pour les
+Archives **et** la Corbeille.
+
+⚠️ **La fin de PEC doit être annoncée même si le dossier est archivé.** Le filtre
+`p.pec && !p.archived` excluait les patients clôturés *puis* archivés — leur fin de prise
+en charge n'apparaissait dans aucune relève. Le test porte désormais sur `p.pec` seul.
+
 **`relevePool(tour, start, end)`** réintègre les patients dont `pec.end` tombe dans la période :
 c'est ce qui fait apparaître la mention « FIN DE PRISE EN CHARGE » dans la relève du jour
 concerné, même si le patient est déjà sorti des tournées.

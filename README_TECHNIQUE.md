@@ -313,6 +313,11 @@ Les rappels portent désormais trois cas : `pid` (patient) · `tour` (cabinet) �
 Migration : les anciens rappels « généraux » (sans patient) deviennent **personnels** —
 on ne peut pas deviner leur cabinet, et un rappel personnel ne fuite pas.
 
+**Le même cloisonnement s'applique à la RELÈVE** (`buildReleve`, bloc `rapBlock`) :
+un rappel `perso` n'y figure jamais, un rappel de cabinet seulement dans la relève de
+ce cabinet. Le filtre initial `!r.pid || poolIds.has(r.pid)` laissait passer **tous** les
+rappels sans patient — y compris ceux des autres cabinets et les personnels.
+
 **Ne jamais rendre `tour` facultatif à l'envoi.** `sheetSendSync()` impose le choix du
 cabinet avant de générer le fichier.
 

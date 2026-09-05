@@ -4209,14 +4209,23 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
 
   let rapBlock = "";
   if (withRaps){
-    const raps = S.rappels.filter(r=>!r.done && (!r.pid || poolIds.has(r.pid)))
+    /* Même cloisonnement que la synchro : un rappel personnel ne sort jamais,
+       et un rappel de cabinet ne figure que dans la relève de CE cabinet. */
+    const raps = S.rappels.filter(r => {
+      if (r.done) return false;
+      if (r.perso) return false;                       // personnel : jamais transmis
+      if (r.pid)   return poolIds.has(r.pid);          // patient : suit son dossier
+      if (r.tour)  return tour === "all" || r.tour === tour;   // cabinet
+      return true;                                     // ancien rappel non typé
+    })
       .sort((a,b)=>String(a.due).localeCompare(String(b.due)));
     if (raps.length){
       rapBlock = "📌 À PRÉVOIR / RAPPELS\n" + raps.map(r => {
         const rp = r.pid ? getP(r.pid) : null;
         const cd = rapCountdown(r);
         const cdTxt = cd.txt ? " [" + (cd.cls==="past"?"⚠ ":"") + cd.txt + "]" : "";
-        return "  · " + rapType(r.type).lbl + (rp?" ["+(anon?anonName(rp):rp.nom.replace("Demo-","").toUpperCase())+"]":" [tournée]") +
+        return "  · " + rapType(r.type).lbl + (rp ? " ["+(anon?anonName(rp):rp.nom.replace("Demo-","").toUpperCase())+"]"
+            : (r.tour ? " ["+r.tour+"]" : " [tournée]")) +
           (r.due?" — éch. "+fmtFR(r.due)+cdTxt:"") + " : " + r.text;
       }).join("\n") + "\n" + L + "\n";
     }

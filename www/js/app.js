@@ -4060,8 +4060,15 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
     if (mode==="events") shown = vs.filter(isEvent);
     if (mode==="select") shown = vs.filter(v=>keep.has(v.uid));
     if (!shown.length && !bils.length){
-      if (mode==="events" && vs.length) routines.push(anon ? anonName(p) : p.nom.replace("Demo-","").toUpperCase()+" "+p.prenom+" ("+vs.length+" passage"+(vs.length>1?"s":"")+")");
-      return;
+      // En mode SÉLECTION, un patient coché doit toujours figurer dans la relève :
+      // s'il n'a rien de notable, on affiche quand même son bloc avec
+      // « Plan de soins respecté ». Le masquer donnait une relève incomplète.
+      if (mode === "select"){
+        if (!vs.length) return;          // aucun passage du tout sur la période
+      } else {
+        if (mode==="events" && vs.length) routines.push(anon ? anonName(p) : p.nom.replace("Demo-","").toUpperCase()+" "+p.prenom+" ("+vs.length+" passage"+(vs.length>1?"s":"")+")");
+        return;
+      }
     }
     const pNom = anon ? anonName(p) : p.nom.replace("Demo-","").toUpperCase()+" "+p.prenom;
     const po = (pOpts && pOpts[p.id]) || { consts:true, notes:true, bilans:true, raps:true, docs:false };
@@ -4138,6 +4145,9 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
          Plan respecté partout sans remarque → une seule ligne.
          Sinon : la ligne globale + uniquement les moments à lire,
          datés et situés (matin / soir). ── */
+      // Mode sélection sans passage retenu : on s'appuie sur l'ensemble
+      // des passages de la période pour établir le plan de soins respecté.
+      const base = shown.length ? shown : (mode === "select" ? vs : shown);
       const plan = p.plan || [];
       const moment = v => {
         const d = fmtFR(v.date);
@@ -4147,7 +4157,7 @@ function buildReleve({start, end, mode, withRaps, keep, pOpts, layout, anon, tou
       let planTenu = false;
       const evenements = [];
 
-      shown.forEach(v => {
+      base.forEach(v => {
         const sn = v.soinNotes || {};
         const commentes = (v.soins||[]).filter(x => sn[x]);
         const horsPlan  = (v.soins||[]).filter(x => !plan.includes(x) && !sn[x]);
@@ -4856,9 +4866,11 @@ function showReport(text, opts, keepExtras){
       doc.addPage(); y=M;
       doc.setFillColor(0,90,80); doc.rect(0,0,210,13,"F");
       doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(255,255,255);
-      doc.text("RELEVE INFIRMIERE - JM@Sante", M, 9); doc.setTextColor(0,0,0);
-      doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(255,255,255);
-      doc.text("ANNEXES", M, 9); doc.setTextColor(0,0,0); y=22;
+      doc.text("RELEVE INFIRMIERE - JM@Sante", M, 8);
+      // « ANNEXES » aligné à DROITE : au même endroit, il se superposait au titre.
+      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(168,222,210);
+      doc.text("ANNEXES", 210-M, 8.5, { align:"right" });
+      doc.setTextColor(0,0,0); y=24;
 
       for (const a of annexes){
         chk(14);

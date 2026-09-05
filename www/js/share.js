@@ -599,9 +599,11 @@ function showReport(text, opts, keepExtras){
       doc.addPage(); y=M;
       doc.setFillColor(0,90,80); doc.rect(0,0,210,13,"F");
       doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(255,255,255);
-      doc.text("RELEVE INFIRMIERE - JM@Sante", M, 9); doc.setTextColor(0,0,0);
-      doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(255,255,255);
-      doc.text("ANNEXES", M, 9); doc.setTextColor(0,0,0); y=22;
+      doc.text("RELEVE INFIRMIERE - JM@Sante", M, 8);
+      // « ANNEXES » aligné à DROITE : au même endroit, il se superposait au titre.
+      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(168,222,210);
+      doc.text("ANNEXES", 210-M, 8.5, { align:"right" });
+      doc.setTextColor(0,0,0); y=24;
 
       for (const a of annexes){
         chk(14);

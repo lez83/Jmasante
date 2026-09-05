@@ -224,6 +224,18 @@ par défaut, appliquées **avant** les ops qui les concernent), `delPatients` (s
 `plans` (plans de soins : validation individuelle), `conflicts` (édition simultanée :
 tranchage par donnée).
 
+**Bandeau PDF des annexes** — « RELEVE INFIRMIERE » et « ANNEXES » étaient tracés à la
+même coordonnée (M, 9), donc superposés. « ANNEXES » est désormais aligné à droite
+(`{ align:"right" }`) en corps plus petit. Vérifier visuellement toute modification du
+bandeau : jsPDF n'avertit jamais d'un chevauchement.
+
+**Mode SÉLECTION** — un patient coché doit **toujours** figurer dans la relève, même sans
+passage retenu par le filtre (`keep`). Le `return` anticipé sur `!shown.length && !bils.length`
+le faisait disparaître : relève incomplète, et — effet de bord — ses documents n'étaient plus
+proposés à l'envoi, puisque `inReleve()` s'appuie sur les patients présents dans le texte.
+Quand `shown` est vide en mode select, le bloc se construit sur `vs` (tous les passages de la
+période) pour établir « Plan de soins respecté ».
+
 **Moteur de relève** (`engine.js`) — le bloc narratif et `patientStructured()` font une
 **passe d'analyse sur toute la période** avant de produire du texte : `planTenu` (booléen) et
 un tableau `evenements[]`. Résultat : une seule mention « Plan de soins respecté », puis les

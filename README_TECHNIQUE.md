@@ -377,6 +377,15 @@ d'un overlay le fait avorter).
 les .docx partent en **pièce jointe séparée** dans toutes les relèves. Ne pas tenter de
 les intégrer aux annexes cliquables.
 
+**⚠️ La sauvegarde DOIT embarquer les contenus** — `exportBackup()` sérialisait `S` seul,
+donc uniquement les *références* aux documents. Après réinstallation + import, la fiche
+affichait des noms de fichiers dont le contenu n'existait plus (« contenu introuvable »).
+Corrigé : les contenus sont collectés depuis IDB et joints sous la clé `_docs` du fichier
+de sauvegarde ; `importBackupText()` (désormais `async`) les réécrit dans IDB avant
+d'appliquer l'état, puis supprime `_docs` du state.
+
+**Ne jamais sérialiser `S` seul pour une sauvegarde.** Toujours `{ ...S, _docs }`.
+
 **Stockage du contenu** — le binaire d'un document va **toujours** dans IndexedDB sous
 `doc_<id>` (via `idbSet`), **jamais** dans la fiche patient. Un bug du remplacement (🔁)
 écrivait `d.data` dans la fiche : `idbGet` ne trouvait rien et l'aperçu affichait

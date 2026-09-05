@@ -60,7 +60,7 @@ footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
 <p class="logo">JM<span class="at">@</span>Santé</p>
 <p class="sub">Logiciel de relève pour IDEL</p>
 <p style="font-style:italic;opacity:.8;font-size:14px;margin-top:2px">« Tout est dans la cigale »</p>
-<span class="ver">Mode d'emploi complet · version 38</span>
+<span class="ver">Mode d'emploi complet · version 41</span>
 </div></header>
 <nav><div class="wrap"><a href="#intro">Intro</a><a href="#demarrage">1. Premiers pas</a><a href="#moniteur">2. L'écran principal — le Moniteur</a><a href="#tournees">3. Créer et organiser les tournées</a><a href="#patient">4. Le dossier patient</a><a href="#finpec">5. 🎗️ Fin de prise en charge</a><a href="#passage">6. Saisir un passage</a><a href="#creneaux">7. Les créneaux Matin / Soir</a><a href="#outils-rapides">8. Dictée rapide et déroulé de tournée</a><a href="#rappels">9. Bilans et rappels</a><a href="#releve">10. Générer et envoyer la relève</a><a href="#securite">11. Sécurité et sauvegarde</a><a href="#synchro">12. 🔄 Partage & synchronisation entre collègues</a><a href="#installer">13. 📲 Installer l'app (iPhone, Android, PC)</a><a href="#windows">14. La version Windows</a><a href="#astuces">15. Astuces & résumé des gestes</a></div></nav>
 <section id="intro"><div class="wrap"><h2><span class="n">ℹ️</span>Qu'est-ce que JM@Santé ?</h2>
@@ -528,6 +528,29 @@ footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
   <div class="row" style="margin-top:6px"><span class="chip on" style="width:100%;text-align:center;padding:8px">Appliquer cette synchro</span></div>
 </div>
 
+<h3>🔒 Cloisonnement par cabinet</h3>
+<div class="warn"><b>Un fichier de synchro ne contient que les patients du cabinet choisi.</b> Si tu remplaces sur plusieurs cabinets, ton collègue du Cabinet A ne reçoit <b>rien</b> des Cabinets B et C — ni les patients, ni leurs passages, ni leurs rappels. C'est une exigence du secret professionnel, pas une option.</div>
+<p>Au moment d'envoyer, tu choisis donc <b>quel cabinet</b> transmettre. L'écran te rappelle combien de patients, de modifications et de rappels partiront.</p>
+
+<h3>📌 Les trois natures de rappel</h3>
+<p>Chaque rappel indique ce qu'il concerne, et cela détermine s'il part ou non :</p>
+<table>
+<tr><th>Nature</th><th>Exemple</th><th>Part en synchro ?</th></tr>
+<tr><td>🧑 <b>Patient</b></td><td>Renouveler l'ordonnance de M. Martin</td><td>Oui, avec le cabinet de ce patient</td></tr>
+<tr><td>🗺️ <b>Cabinet</b></td><td>Commander des compresses pour les Oliviers</td><td>Oui, avec la synchro de ce cabinet</td></tr>
+<tr><td>🔒 <b>Personnel</b></td><td>Rendez-vous chez le comptable</td><td><b>Jamais</b> — reste sur ton appareil</td></tr>
+</table>
+<div class="tip">Tes anciens rappels « généraux » sont devenus <b>personnels</b> lors de la mise à jour : impossible de deviner à quel cabinet ils appartenaient, et un rappel personnel ne peut pas fuiter. Réaffecte-les si besoin en les modifiant.</div>
+
+<h3>📎 Joindre des documents</h3>
+<p><b>Aucun document n'est joint par défaut</b>, pour ne pas alourdir l'envoi. Tu coches patient par patient ce qui sera utile à ton collègue — l'ordonnance en cours, la photo de plaie récente — pas les archives.</p>
+<p>Le <b>poids total</b> s'affiche en direct et passe en orange au-delà de 8 Mo, avec un avertissement : certaines messageries refusent les gros envois. Mais tu peux toujours envoyer si tu le juges nécessaire.</p>
+
+<h3>📥 Trier ce que tu reçois</h3>
+<p>À la réception, une section <b>Documents reçus</b> liste ce que ton collègue t'envoie, avec le patient concerné, la date et le poids. Tu coches uniquement ce que tu veux garder.</p>
+<div class="warn"><b>Tes documents ne sont jamais remplacés.</b> Si le fichier reçu porte le même nom que l'un des tiens, l'application affiche <b>les deux dates</b> pour que tu tranches, et la case est <b>décochée par prudence</b>. Si tu l'acceptes malgré tout, il est ajouté <b>à côté</b> du tien — renommé « nom (reçu 5 sept.).pdf » — et jamais par-dessus.</div>
+<p>C'est ce qui te protège si ton collègue se trompe de fichier : tu gardes le tien, et tu prends seulement ce qui t'intéresse.</p>
+
 <h3>4. Nouveaux patients et suppressions</h3>
 <p>Si ton collègue fait une <b>admission</b>, le dossier t'arrive avec son <b>plan de soins</b> et ses premiers passages. Il apparaît dans une section dédiée — <b>accepté par défaut</b>, tu peux l'ignorer d'un tap.</p>
 <div class="warn"><b>Les suppressions sont refusées par défaut.</b> Si un collègue supprime un patient, la demande t'est présentée mais rien n'est supprimé sans ton accord explicite (double confirmation). Et si tu acceptes, le dossier part dans <b>ta corbeille</b> — récupérable 30 jours.</div>
@@ -562,6 +585,20 @@ footer{text-align:center;padding:30px 20px;color:var(--mut);font-size:14px}
 <p>En fin de tournée, tu envoies ton fichier dynamique à ton collègue. Il l'applique et voit tes passages du jour, tes rappels avec leur compte à rebours à jour. Réciproquement, tu appliques le sien. Vous restez synchronisés, chacun avec son organisation personnelle.</p>
 </div></section>
 <section id="installer"><div class="wrap"><h2><span class="n">13</span>📲 Installer l'app (iPhone, Android, PC)</h2>
+<h3>🦗 Le menu Réglages</h3>
+<p>Le bouton <b>cigale</b> (en haut à gauche du Moniteur) ouvre les réglages, organisés en <b>six rubriques</b> :</p>
+<table>
+<tr><th>Rubrique</th><th>Contient</th></tr>
+<tr><td>🗺️ <b>Ma tournée</b></td><td>Tournées, ordre de passage, créneaux matin/soir, feuille de route</td></tr>
+<tr><td>🔄 <b>Partage</b></td><td>Envoyer, recevoir, historique des synchros, identité</td></tr>
+<tr><td>👥 <b>Mes patients</b></td><td>Prises en charge terminées, archives, corbeille</td></tr>
+<tr><td>💾 <b>Mes données</b></td><td>Sauvegarde, sécurité, journal des envois</td></tr>
+<tr><td>📋 <b>Catalogues</b></td><td>Catalogue des soins, phrases types</td></tr>
+<tr><td>⚙️ <b>Application</b></td><td>Thème, conservation, guide, démo</td></tr>
+</table>
+<p>Un interrupteur en haut à droite bascule entre deux présentations : <b>▦ Tuiles</b> (grandes cibles, l'état de chaque rubrique en sous-titre — « 2 cabinets », « ⚠ sauvegarde : 4 j ») et <b>☰ Liste</b> (plus dense, une ligne par item). Ton choix est mémorisé.</p>
+
+
 <p class="lead">En plus de l'application Android classique, JM@Santé s'installe directement depuis un lien web — c'est la seule voie sur <b>iPhone</b>, et une alternative légère ailleurs.</p>
 
 <h3>Sur iPhone / iPad</h3>

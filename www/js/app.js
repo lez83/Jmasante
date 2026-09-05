@@ -780,7 +780,22 @@ async function exportBackup(mode){
   // mode : "save" (fichier local uniquement) | "share" (menu de partage) | défaut = les deux tentés
   if (!S.patients.length){ toast("Aucune donnée à sauvegarder."); return; }
   S.lastBackup = Date.now(); save();
-  const json = JSON.stringify(S, null, 1);
+
+  /* Les contenus des documents vivent hors du state (clés doc_<id>).
+     Sans eux, une sauvegarde restaurée n'affiche que des noms de fichiers
+     et le message « contenu introuvable ». On les joint donc au fichier. */
+  const _docs = {};
+  let _nDocs = 0;
+  for (const p of (S.patients||[])){
+    for (const d of (p.docs||[])){
+      try {
+        const data = await idbGet("doc_"+d.id);
+        if (data){ _docs[d.id] = data; _nDocs++; }
+      } catch(e){ /* document illisible : ignoré */ }
+    }
+  }
+  const json = JSON.stringify({ ...S, _docs }, null, 1);
+  if (_nDocs) toast(_nDocs + " document(s) inclus dans la sauvegarde 📎");
   const fname = "JMSante_sauvegarde_" + todayISO() + ".json";
   const cap = window.Capacitor;
   if (cap && cap.isNativePlatform && cap.isNativePlatform()){
@@ -823,7 +838,7 @@ function convertLegacy(j){
   });
   return { version:1, tours, curTour:"all", patients, rappels:[] };
 }
-function importBackupText(txt){
+async function importBackupText(txt){
 
     // 1. Lecture brute
     let raw = txt;
@@ -846,6 +861,19 @@ function importBackupText(txt){
       if (j && Array.isArray(j.patients) && j.version >= 1) incoming = j;
       else if (j && Array.isArray(j.patients)) incoming = convertLegacy(j);
     } catch(e){ console.error("convert:", e); }
+    /* Restaurer les contenus des documents joints à la sauvegarde.
+       Sans cette étape, la fiche mentionne des fichiers dont le contenu
+       n'existe plus (« contenu introuvable »). */
+    if (incoming && incoming._docs && typeof incoming._docs === "object"){
+      let n = 0;
+      for (const [id, data] of Object.entries(incoming._docs)){
+        if (!data) continue;
+        try { await idbSet("doc_"+id, data); n++; } catch(e){ console.warn("doc restore:", e); }
+      }
+      delete incoming._docs;          // ne pas conserver dans le state
+      if (n) toast(n + " document(s) restauré(s) 📎");
+    }
+
     if (!incoming || !Array.isArray(incoming.patients)){
       toast("Fichier non reconnu comme sauvegarde JM@Santé.", "danger"); return;
     }
@@ -2656,8 +2684,9 @@ function viewDoc(d){
         <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 8px">Contenu introuvable</p>
         <p style="color:#9fb0ab;font-size:13px;line-height:1.55;margin:0 0 20px;max-width:290px;margin-inline:auto">
           La fiche mentionne « ${esc(d.name)} » mais son contenu n'est plus sur cet appareil.
-          Cela arrive si le document vient d'une sauvegarde ou d'une synchro : seules les
-          références sont transmises, pas les fichiers eux-mêmes.</p>
+          Cela peut arriver si le fichier a été importé depuis une sauvegarde faite avec une
+          version antérieure de l'app, ou reçu par synchro sans être joint.
+          Demande à son expéditeur de te le renvoyer, ou réimporte-le depuis la fiche.</p>
         <div class="dv-bar" style="position:static;padding:0;background:none">
           <button class="btn btn-primary dv-close">Fermer</button>
         </div>

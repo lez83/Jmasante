@@ -1072,8 +1072,9 @@ function viewDoc(d){
         <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 8px">Contenu introuvable</p>
         <p style="color:#9fb0ab;font-size:13px;line-height:1.55;margin:0 0 20px;max-width:290px;margin-inline:auto">
           La fiche mentionne « ${esc(d.name)} » mais son contenu n'est plus sur cet appareil.
-          Cela arrive si le document vient d'une sauvegarde ou d'une synchro : seules les
-          références sont transmises, pas les fichiers eux-mêmes.</p>
+          Cela peut arriver si le fichier a été importé depuis une sauvegarde faite avec une
+          version antérieure de l'app, ou reçu par synchro sans être joint.
+          Demande à son expéditeur de te le renvoyer, ou réimporte-le depuis la fiche.</p>
         <div class="dv-bar" style="position:static;padding:0;background:none">
           <button class="btn btn-primary dv-close">Fermer</button>
         </div>

@@ -349,6 +349,28 @@ décochée d'office s'il existe déjà un fichier de même nom chez le destinata
 **aucun document existant n'est jamais écrasé** — un doublon est ajouté à côté, renommé
 « nom (reçu <date>).ext ».
 
+## Saisie d'un passage — trois issues
+
+```
+Annuler   → abandonne (confirmation si des soins/notes sont saisis)
+💾        → S.drafts[pid] : saisie DURABLE, le patient reste « à voir »
+✓ Valider → commitVisit() : crée le passage, consomme S.drafts[pid]
+```
+
+`_formDraft` est une variable en mémoire : elle ne survit **pas** à la fermeture de l'app.
+`S.drafts[pid]` est persisté dans le state — c'est ce qui distingue « 💾 Enregistrer » du
+brouillon automatique. À l'ouverture d'une carte, `_formDraft` est réhydraté depuis
+`S.drafts[pid]` s'il existe ; la validation le supprime.
+
+**Rien de tout cela ne remonte automatiquement dans la relève** : ce qui y figure suit les
+règles habituelles (plan respecté, soins commentés, constantes cochées, infos à interrupteur).
+Une saisie enregistrée sans validation n'est **pas** un passage.
+
+⚠️ **Doublons** — `commitVisit()` faisait `p.visits.push()` sans contrôle : valider depuis la
+carte **puis** depuis le déroulé créait deux passages le même jour et le même créneau. Un
+`confirm()` propose désormais de fusionner (union des soins, fusion des constantes,
+concaténation des notes) ; refuser garde les deux passages, cas légitime d'une reprise.
+
 ## Navigation (nav.js)
 
 ```

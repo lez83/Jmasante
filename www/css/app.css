@@ -957,3 +957,4 @@ body:has(.ios-banner) .install-btn{ bottom:130px; }
   cursor:pointer; color:var(--faint);
 }
 .nav-home:active{ background:var(--danger-soft, rgba(220,80,80,.12)); color:var(--danger); }
+.mini.accent{ background:var(--accent-soft, rgba(43,179,163,.14)); color:var(--accent); }

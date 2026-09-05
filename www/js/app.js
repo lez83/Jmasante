@@ -1183,6 +1183,7 @@ function render(){
         <div class="badges" style="margin-top:5px">
           ${s==="absent" ? `<span class="mini amber">🚪 absent</span>` : ""}
           ${s==="novisit" ? `<span class="mini grey">🚫 pas de passage prévu</span>` : ""}
+          ${(S.drafts||{})[p.id] ? `<span class="mini accent">💾 saisie en attente</span>` : ""}
           ${S.curTour==="all" && (p.tours||[]).length ? `<span class="mini">🗺 ${esc(p.tours.join(" · "))}</span>` : ""}
           ${p.docs.length ? `<span class="mini blue">📎 ${p.docs.length}</span>` : ""}
           ${bilansPending(p).length ? `<span class="mini blue">🧪 ${bilansPending(p).length}</span>` : ""}
@@ -1290,10 +1291,12 @@ function inlineForm(p){
         <button class="mic" data-mic="1">🎤</button>
       </div>
     </div>
-    <div class="rowb">
-      <button class="btn btn-ghost" data-cancel="1">Fermer</button>
-      <button class="btn btn-primary" data-save="1">✓ Valider le passage</button>
+    <div class="rowb" style="gap:7px">
+      <button class="btn btn-ghost" data-cancel="1" style="flex:0 0 auto;padding-inline:14px">Annuler</button>
+      <button class="btn btn-ghost" data-keep="1" style="flex:1">💾 Enregistrer</button>
+      <button class="btn btn-primary" data-save="1" style="flex:1.3">✓ Valider le passage</button>
     </div>
+    <p class="small muted" style="margin-top:6px;text-align:center">💾 conserve ta saisie sans marquer le passage · ✓ enregistre le passage du jour</p>
   </div>`;
 }
 
@@ -1312,6 +1315,10 @@ function _saveDraft(f, pid){
   _formDraft = { pid, soins, consts, taS, taD, note, soinNotes:{..._soinNotes}, constRel, dardOn };
 }
 function _restoreDraft(f, pid){
+  // Reprendre une saisie enregistrée avec 💾 (elle survit à la fermeture de l'app)
+  if ((!_formDraft || _formDraft.pid !== pid) && (S.drafts||{})[pid]){
+    _formDraft = { ...S.drafts[pid], pid };
+  }
   if (!_formDraft || _formDraft.pid !== pid){ _soinNotes = {}; return; }
   const d = _formDraft;
   _soinNotes = { ...(d.soinNotes||{}) };
@@ -1528,7 +1535,28 @@ function bindInline(p){
     else noteField.readOnly = false;
   };
   f.querySelectorAll("[data-dard]").forEach(inp => inp.addEventListener("input", composeDard));
-  f.querySelector("[data-cancel]").onclick = () => { _formDraft=null; _soinNotes={}; _curSlot=null; openId=null; render(); };
+  f.querySelector("[data-cancel]").onclick = () => {
+    // Ne pas jeter silencieusement une saisie en cours
+    const soinsOn = f.querySelectorAll(".chip[data-s].on").length;
+    const noteTxt = (f.querySelector("[data-note]")?.value||"").trim();
+    const cstTxt  = [...f.querySelectorAll("[data-c]")].some(i => (i.value||"").trim());
+    if ((soinsOn || noteTxt || cstTxt) &&
+        !confirm("Abandonner cette saisie ?\nLes soins cochés, les constantes et la transmission seront perdus.")) return;
+    _formDraft=null; _soinNotes={}; _curSlot=null; openId=null; render();
+  };
+
+  /* 💾 Enregistrer sans valider — la saisie est conservée durablement
+     (elle survit à la fermeture de l'app) mais le patient reste « à voir ». */
+  const keepBtn = f.querySelector("[data-keep]");
+  if (keepBtn) keepBtn.onclick = () => {
+    _saveDraft(f, p.id);
+    if (!_formDraft){ toast("Rien à enregistrer"); return; }
+    S.drafts = S.drafts || {};
+    S.drafts[p.id] = { ..._formDraft, at: Date.now() };
+    save();
+    _curSlot = null; openId = null; render();
+    toast("Saisie enregistrée 💾 — le passage n'est pas encore validé");
+  };
   // ① Case « inclure les constantes dans la relève »
   const constRelBtn = f.querySelector("[data-constrel]");
   if (constRelBtn){
@@ -1556,6 +1584,33 @@ function bindInline(p){
     soins.forEach(sn => { if (_soinNotes[sn]) sNotes[sn] = _soinNotes[sn]; });
     const constRel = !!f.querySelector("[data-constrel].on");
     const dardOn = !!f._dardOn;
+    /* Doublon : un passage existe déjà aujourd'hui sur le même créneau.
+       Sans ce contrôle, valider depuis la carte puis depuis le déroulé
+       créait deux passages le même jour. */
+    const _slot = S.slotsEnabled ? (_curSlot || defaultSlot()) : null;
+    const dbl = (p.visits||[]).find(v => v.date === todayISO() &&
+                (!S.slotsEnabled || (v.slot||defaultSlot()) === _slot));
+    if (dbl && !silent){
+      const sl = _slot && SLOT_LBL[_slot] ? " " + SLOT_LBL[_slot].ic + " " + SLOT_LBL[_slot].lbl.toLowerCase() : "";
+      const rep = confirm(p.prenom + " a déjà un passage aujourd'hui (" + sl.trim() + " " + (dbl.at||"") + ").\n\n" +
+        "OK : COMPLÉTER ce passage (recommandé — soins et notes fusionnés)\n" +
+        "Annuler : garder les deux passages séparés");
+      if (rep){
+        // Fusion dans le passage existant
+        dbl.soins = [...new Set([...(dbl.soins||[]), ...soins])];
+        dbl.consts = { ...(dbl.consts||{}), ...consts };
+        if (note) dbl.note = dbl.note ? (dbl.note + "\n" + note) : note;
+        if (Object.keys(sNotes).length) dbl.soinNotes = { ...(dbl.soinNotes||{}), ...sNotes };
+        if (constRel) dbl.constRel = true;
+        if (dardOn) dbl.dar = true;
+        dbl.at = nowHM();
+        if (typeof logChange==="function") logChange("update","visit", p.id+"|"+dbl.uid, dbl);
+        _soinNotes = {}; _formDraft = null;
+        if (S.drafts && S.drafts[p.id]) delete S.drafts[p.id];
+        return true;
+      }
+    }
+
     const _v = { uid:uid(), date:todayISO(), at:nowHM(), soins, consts, note,
       ...(S.slotsEnabled ? { slot:(_curSlot||defaultSlot()) } : {}),
       ...(Object.keys(sNotes).length ? { soinNotes:sNotes } : {}),
@@ -1564,6 +1619,7 @@ function bindInline(p){
     p.visits.push(_v);
     if (typeof logChange==="function") logChange("add","visit", p.id+"|"+_v.uid, _v);
     _soinNotes = {}; _formDraft = null;
+    if (S.drafts && S.drafts[p.id]){ delete S.drafts[p.id]; }   // saisie consommée
     return true;
   };
   f._commitVisit = commitVisit; // exposé pour le mode séquentiel
@@ -2001,6 +2057,11 @@ function bindMenuHandlers(){
 
 <div class="cat-head">☀️🌙 Créneaux Matin / Soir</div>
 <p class="small" style="margin-bottom:8px">Active-les dans <b>🗺️ → Créneaux</b>. Un sélecteur apparaît alors sur chaque passage : ce que tu coches est attribué au créneau choisi (deux passages distincts le même jour). Dans <b>👥</b>, chaque créneau a sa <b>propre composition et son propre ordre</b>. Le bandeau ☀️/🌙 du Moniteur bascule la vue ; le déroulé ▶ suit le créneau affiché.</p>
+
+<div class="cat-head">💾 Enregistrer sans valider le passage</div>
+<p class="small" style="margin-bottom:8px">Sous chaque carte patient, trois boutons : <b>Annuler</b> (abandonne, avec confirmation si tu as saisi quelque chose) · <b>💾 Enregistrer</b> · <b>✓ Valider le passage</b>.</p>
+<p class="small" style="margin-bottom:8px"><b>💾 Enregistrer</b> conserve ta saisie <b>durablement</b> sans marquer le passage : utile quand le médecin te transmet une information avant ton passage, ou quand tu penses à quelque chose après coup. Le patient reste « à voir », un repère <b>💾 saisie en attente</b> apparaît sur sa carte, et tu retrouves tout en rouvrant la carte pour compléter puis valider.</p>
+<p class="small" style="margin-bottom:8px"><b>Doublon évité</b> : si tu valides un passage alors que le patient en a déjà un aujourd'hui sur le même créneau, l'app te propose de <b>compléter</b> le passage existant plutôt que d'en créer un second. Les deux restent possibles.</p>
 
 <div class="cat-head">↩️ Revenir en arrière</div>
 <p class="small" style="margin-bottom:8px">Trois façons, au choix : le bouton <b>‹ suivi du nom</b> en haut à gauche (il indique où tu reviens) · le <b>bouton retour de ton téléphone</b> · ou <b>glisser la poignée vers le bas</b> pour fermer la feuille. Le <b>✕</b> en haut à droite ferme tout d'un coup et ramène au Moniteur.</p>

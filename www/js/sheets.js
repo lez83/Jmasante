@@ -390,6 +390,11 @@ function bindMenuHandlers(){
 <div class="cat-head">☀️🌙 Créneaux Matin / Soir</div>
 <p class="small" style="margin-bottom:8px">Active-les dans <b>🗺️ → Créneaux</b>. Un sélecteur apparaît alors sur chaque passage : ce que tu coches est attribué au créneau choisi (deux passages distincts le même jour). Dans <b>👥</b>, chaque créneau a sa <b>propre composition et son propre ordre</b>. Le bandeau ☀️/🌙 du Moniteur bascule la vue ; le déroulé ▶ suit le créneau affiché.</p>
 
+<div class="cat-head">💾 Enregistrer sans valider le passage</div>
+<p class="small" style="margin-bottom:8px">Sous chaque carte patient, trois boutons : <b>Annuler</b> (abandonne, avec confirmation si tu as saisi quelque chose) · <b>💾 Enregistrer</b> · <b>✓ Valider le passage</b>.</p>
+<p class="small" style="margin-bottom:8px"><b>💾 Enregistrer</b> conserve ta saisie <b>durablement</b> sans marquer le passage : utile quand le médecin te transmet une information avant ton passage, ou quand tu penses à quelque chose après coup. Le patient reste « à voir », un repère <b>💾 saisie en attente</b> apparaît sur sa carte, et tu retrouves tout en rouvrant la carte pour compléter puis valider.</p>
+<p class="small" style="margin-bottom:8px"><b>Doublon évité</b> : si tu valides un passage alors que le patient en a déjà un aujourd'hui sur le même créneau, l'app te propose de <b>compléter</b> le passage existant plutôt que d'en créer un second. Les deux restent possibles.</p>
+
 <div class="cat-head">↩️ Revenir en arrière</div>
 <p class="small" style="margin-bottom:8px">Trois façons, au choix : le bouton <b>‹ suivi du nom</b> en haut à gauche (il indique où tu reviens) · le <b>bouton retour de ton téléphone</b> · ou <b>glisser la poignée vers le bas</b> pour fermer la feuille. Le <b>✕</b> en haut à droite ferme tout d'un coup et ramène au Moniteur.</p>
 

@@ -508,12 +508,42 @@ function sheetPatientsPanel(){
 }
 
 /* 💾 Données */
+/* Poids réel des documents, lu depuis le stockage.
+   Aide à repérer ce qu'il faut élaguer pour alléger les sauvegardes. */
+async function fillBackupWeight(){
+  const box = document.getElementById("bk-weight");
+  if (!box) return;
+  const per = [];
+  let total = 0, count = 0;
+  for (const p of (S.patients||[])){
+    let ko = 0, n = 0;
+    for (const d of (p.docs||[])){
+      try {
+        const data = await idbGet("doc_"+d.id);
+        if (data){ ko += String(data).length * 0.75 / 1024; n++; }
+      } catch(e){}
+    }
+    if (n){ per.push({ p, ko, n }); total += ko; count += n; }
+  }
+  if (!document.getElementById("bk-weight")) return;   // écran fermé entre-temps
+  if (!count){ box.textContent = "Aucun document — sauvegarde légère."; return; }
+  const fmt = k => k >= 1024 ? (k/1024).toFixed(1)+" Mo" : Math.round(k)+" Ko";
+  per.sort((a,b) => b.ko - a.ko);
+  const top = per.slice(0,3).map(x =>
+    `${esc(x.p.nom.replace("Demo-","").toUpperCase())} (${fmt(x.ko)} · ${x.n} doc${x.n>1?"s":""})`).join(" · ");
+  const heavy = total > 25*1024;
+  box.innerHTML = `<b>${count} document(s) · ${fmt(total)}</b>` +
+    (per.length ? `<br>Les plus lourds : ${top}` : "") +
+    (heavy ? `<br><span style="color:var(--amber)">⚠ Sauvegarde volumineuse — supprime les documents devenus inutiles depuis les fiches patients, puis refais-en une.</span>` : "");
+}
+
 function sheetDataPanel(){
   const days = S.lastBackup ? Math.floor((Date.now()-S.lastBackup)/864e5) : null;
   const warn = (days === null || days >= 7);
   menuSheet("💾 Mes données", `
     ${warn?`<div class="tip" style="border-color:var(--amber);background:var(--amber-soft);margin-bottom:12px">⚠ ${days===null?"Aucune sauvegarde n'a encore été faite.":"Dernière sauvegarde il y a "+days+" jours."} Pense à en faire une régulièrement.</div>`:""}
     <span class="lab" style="display:block;margin-bottom:8px">💾 Sauvegarde</span>
+    <div id="bk-weight" class="small muted" style="margin-bottom:10px">Calcul du poids des documents…</div>
     <div class="rowb" style="margin-bottom:8px">
       <button class="btn btn-ghost" id="bk-save">💾 Enregistrer</button>
       <button class="btn btn-ghost" id="bk-exp">📤 Partager</button>
@@ -531,6 +561,7 @@ function sheetDataPanel(){
     <p class="small muted" style="margin-bottom:16px">Code à 4 chiffres demandé à l'ouverture.</p>
     <div style="height:1px;background:var(--border);margin:16px 0"></div>
     <button class="btn btn-ghost" id="go-sendlog" style="width:100%">📨 Journal des envois (${(S.sendLog||[]).length})</button>`);
+  fillBackupWeight();
 }
 
 /* 📋 Catalogues */

@@ -294,6 +294,7 @@ async function pdfToImagesGlobal(dataUrl, maxPages=5){
 }
 
 let _lastReport = null; // relève courante, pour la rouvrir après message/signature
+let _keepDocs = null;   // sélection de documents conservée lors d'un réaffichage
 
 /* Retire l'encart texte du message : PDF et HTML le rendent eux-mêmes
    avec leur propre mise en forme (sinon il apparaît deux fois, et collé
@@ -328,7 +329,7 @@ function richPreview(text){
 function showReport(text, opts, keepExtras){
   // Nouvelle relève → message et signature repartent à zéro.
   // keepExtras=true → simple réaffichage après ajout d'un message/signature.
-  if (!keepExtras){ _finalMsg = ""; _sigData = null; }
+  if (!keepExtras){ _finalMsg = ""; _sigData = null; _keepDocs = null; }
   _lastReport = { text, opts };
   const { tour } = opts;
   const label = (tour==="all"?"toutes":tour).replace(/\s+/g,"_");
@@ -368,7 +369,9 @@ function showReport(text, opts, keepExtras){
   });
 
   let fmt = "txt";
-  const checked = new Set();
+  // Un réaffichage (retour depuis 💬 Message ou ✍️ Signer) doit conserver
+  // les documents déjà cochés — sinon la sélection est silencieusement perdue.
+  const checked = new Set(keepExtras && _keepDocs ? _keepDocs : []);
 
   openSheet(`
     <h3>📤 Envoyer la relève</h3>
@@ -394,8 +397,8 @@ function showReport(text, opts, keepExtras){
               <span>👤 ${esc(g.p.nom.replace("Demo-","").toUpperCase())} ${esc(g.p.prenom)}</span>
               ${g.items.length>1?`<button class="chip doc-all" data-attall="${g.items.map(x=>x.i).join(",")}" style="font-size:11px">Tout</button>`:""}
             </div>
-            ${g.items.map(({i,d})=>`<button class="selv" data-att="${i}">
-              <span class="box"></span>
+            ${g.items.map(({i,d})=>`<button class="selv ${checked.has(i)?"on":""}" data-att="${i}">
+              <span class="box">${checked.has(i)?"✓":""}</span>
               <span class="sv">${/^image\//.test(d.mime||"")?"🖼":"📄"} ${esc(d.name)}${d.date?` <span class="small muted">${fmtFR(d.date)}</span>`:""}</span>
             </button>`).join("")}
           </div>`).join("")}
@@ -454,6 +457,7 @@ function showReport(text, opts, keepExtras){
     checked.has(i) ? checked.delete(i) : checked.add(i);
     paintAtt();
   });
+  updCount();   // refléter d'emblée une sélection conservée (retour message/signature)
   // « Tout » : coche ou décoche tous les documents de CE patient
   $$("#attlist [data-attall]").forEach(b => b.onclick = () => {
     const ids = b.dataset.attall.split(",").map(Number);
@@ -897,7 +901,10 @@ function showReport(text, opts, keepExtras){
     _sigData = sig || null;                       // conservée pour les exports
     const b = document.getElementById("rp-sig");
     if (b) b.textContent = sig ? "✍️ Signé ✓" : "✍️ Signer";
-    else if (_lastReport) setTimeout(() => showReport(_lastReport.text, _lastReport.opts, true), 60);
+    else if (_lastReport){
+      _keepDocs = [...checked];
+      setTimeout(() => showReport(_lastReport.text, _lastReport.opts, true), 60);
+    }
     toast(sig ? "Signature ajoutée aux documents ✓" : "Signature retirée");
   });
 
@@ -916,6 +923,7 @@ function showReport(text, opts, keepExtras){
     if (fmMic) fmMic.onclick = () => { try { dictate($("#fm-txt"), fmMic); } catch(e){ toast("Dictée indisponible"); } };
     const reopen = () => {
       // Régénérer la relève avec le message, puis revenir à l'aperçu
+      _keepDocs = [...checked];          // conserver les documents cochés
       closeSheet();
       if (_lastReport){
         const o = _lastReport.opts || {};

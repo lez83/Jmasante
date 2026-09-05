@@ -239,6 +239,12 @@ lus par le moteur ; ils ne sont jamais recalculés.
 Le document ne contient **que** les patients cochés : c'est une exigence de confidentialité
 (un médecin ne doit pas recevoir les données de patients qui ne sont pas les siens), pas un confort.
 
+**État conservé au réaffichage** — `showReport(text, opts, keepExtras)` : quand `keepExtras`
+est vrai (retour depuis 💬 Message ou ✍️ Signer), la **sélection de documents** est restaurée
+depuis `_keepDocs`, sinon elle serait silencieusement perdue. Les cases et le compteur
+doivent refléter cet état dès le rendu (`checked.has(i)` dans le HTML + appel initial à
+`updCount()`), pas seulement au clic.
+
 **Signature et message de fin** — `_sigData` (dataURL) et `_finalMsg` dans `share.js`,
 **réinitialisés dans `showReport()`** à chaque relève pour éviter de réémettre le mot de la veille.
 Insérés dans les trois formats (jsPDF `addImage`, `<img>` HTML, texte encadré pour le DOCX).

@@ -2120,12 +2120,42 @@ function sheetPatientsPanel(){
 }
 
 /* 💾 Données */
+/* Poids réel des documents, lu depuis le stockage.
+   Aide à repérer ce qu'il faut élaguer pour alléger les sauvegardes. */
+async function fillBackupWeight(){
+  const box = document.getElementById("bk-weight");
+  if (!box) return;
+  const per = [];
+  let total = 0, count = 0;
+  for (const p of (S.patients||[])){
+    let ko = 0, n = 0;
+    for (const d of (p.docs||[])){
+      try {
+        const data = await idbGet("doc_"+d.id);
+        if (data){ ko += String(data).length * 0.75 / 1024; n++; }
+      } catch(e){}
+    }
+    if (n){ per.push({ p, ko, n }); total += ko; count += n; }
+  }
+  if (!document.getElementById("bk-weight")) return;   // écran fermé entre-temps
+  if (!count){ box.textContent = "Aucun document — sauvegarde légère."; return; }
+  const fmt = k => k >= 1024 ? (k/1024).toFixed(1)+" Mo" : Math.round(k)+" Ko";
+  per.sort((a,b) => b.ko - a.ko);
+  const top = per.slice(0,3).map(x =>
+    `${esc(x.p.nom.replace("Demo-","").toUpperCase())} (${fmt(x.ko)} · ${x.n} doc${x.n>1?"s":""})`).join(" · ");
+  const heavy = total > 25*1024;
+  box.innerHTML = `<b>${count} document(s) · ${fmt(total)}</b>` +
+    (per.length ? `<br>Les plus lourds : ${top}` : "") +
+    (heavy ? `<br><span style="color:var(--amber)">⚠ Sauvegarde volumineuse — supprime les documents devenus inutiles depuis les fiches patients, puis refais-en une.</span>` : "");
+}
+
 function sheetDataPanel(){
   const days = S.lastBackup ? Math.floor((Date.now()-S.lastBackup)/864e5) : null;
   const warn = (days === null || days >= 7);
   menuSheet("💾 Mes données", `
     ${warn?`<div class="tip" style="border-color:var(--amber);background:var(--amber-soft);margin-bottom:12px">⚠ ${days===null?"Aucune sauvegarde n'a encore été faite.":"Dernière sauvegarde il y a "+days+" jours."} Pense à en faire une régulièrement.</div>`:""}
     <span class="lab" style="display:block;margin-bottom:8px">💾 Sauvegarde</span>
+    <div id="bk-weight" class="small muted" style="margin-bottom:10px">Calcul du poids des documents…</div>
     <div class="rowb" style="margin-bottom:8px">
       <button class="btn btn-ghost" id="bk-save">💾 Enregistrer</button>
       <button class="btn btn-ghost" id="bk-exp">📤 Partager</button>
@@ -2143,6 +2173,7 @@ function sheetDataPanel(){
     <p class="small muted" style="margin-bottom:16px">Code à 4 chiffres demandé à l'ouverture.</p>
     <div style="height:1px;background:var(--border);margin:16px 0"></div>
     <button class="btn btn-ghost" id="go-sendlog" style="width:100%">📨 Journal des envois (${(S.sendLog||[]).length})</button>`);
+  fillBackupWeight();
 }
 
 /* 📋 Catalogues */
@@ -4511,6 +4542,7 @@ async function pdfToImagesGlobal(dataUrl, maxPages=5){
 }
 
 let _lastReport = null; // relève courante, pour la rouvrir après message/signature
+let _keepDocs = null;   // sélection de documents conservée lors d'un réaffichage
 
 /* Retire l'encart texte du message : PDF et HTML le rendent eux-mêmes
    avec leur propre mise en forme (sinon il apparaît deux fois, et collé
@@ -4545,7 +4577,7 @@ function richPreview(text){
 function showReport(text, opts, keepExtras){
   // Nouvelle relève → message et signature repartent à zéro.
   // keepExtras=true → simple réaffichage après ajout d'un message/signature.
-  if (!keepExtras){ _finalMsg = ""; _sigData = null; }
+  if (!keepExtras){ _finalMsg = ""; _sigData = null; _keepDocs = null; }
   _lastReport = { text, opts };
   const { tour } = opts;
   const label = (tour==="all"?"toutes":tour).replace(/\s+/g,"_");
@@ -4585,7 +4617,9 @@ function showReport(text, opts, keepExtras){
   });
 
   let fmt = "txt";
-  const checked = new Set();
+  // Un réaffichage (retour depuis 💬 Message ou ✍️ Signer) doit conserver
+  // les documents déjà cochés — sinon la sélection est silencieusement perdue.
+  const checked = new Set(keepExtras && _keepDocs ? _keepDocs : []);
 
   openSheet(`
     <h3>📤 Envoyer la relève</h3>
@@ -4611,8 +4645,8 @@ function showReport(text, opts, keepExtras){
               <span>👤 ${esc(g.p.nom.replace("Demo-","").toUpperCase())} ${esc(g.p.prenom)}</span>
               ${g.items.length>1?`<button class="chip doc-all" data-attall="${g.items.map(x=>x.i).join(",")}" style="font-size:11px">Tout</button>`:""}
             </div>
-            ${g.items.map(({i,d})=>`<button class="selv" data-att="${i}">
-              <span class="box"></span>
+            ${g.items.map(({i,d})=>`<button class="selv ${checked.has(i)?"on":""}" data-att="${i}">
+              <span class="box">${checked.has(i)?"✓":""}</span>
               <span class="sv">${/^image\//.test(d.mime||"")?"🖼":"📄"} ${esc(d.name)}${d.date?` <span class="small muted">${fmtFR(d.date)}</span>`:""}</span>
             </button>`).join("")}
           </div>`).join("")}
@@ -4671,6 +4705,7 @@ function showReport(text, opts, keepExtras){
     checked.has(i) ? checked.delete(i) : checked.add(i);
     paintAtt();
   });
+  updCount();   // refléter d'emblée une sélection conservée (retour message/signature)
   // « Tout » : coche ou décoche tous les documents de CE patient
   $$("#attlist [data-attall]").forEach(b => b.onclick = () => {
     const ids = b.dataset.attall.split(",").map(Number);
@@ -5114,7 +5149,10 @@ function showReport(text, opts, keepExtras){
     _sigData = sig || null;                       // conservée pour les exports
     const b = document.getElementById("rp-sig");
     if (b) b.textContent = sig ? "✍️ Signé ✓" : "✍️ Signer";
-    else if (_lastReport) setTimeout(() => showReport(_lastReport.text, _lastReport.opts, true), 60);
+    else if (_lastReport){
+      _keepDocs = [...checked];
+      setTimeout(() => showReport(_lastReport.text, _lastReport.opts, true), 60);
+    }
     toast(sig ? "Signature ajoutée aux documents ✓" : "Signature retirée");
   });
 
@@ -5133,6 +5171,7 @@ function showReport(text, opts, keepExtras){
     if (fmMic) fmMic.onclick = () => { try { dictate($("#fm-txt"), fmMic); } catch(e){ toast("Dictée indisponible"); } };
     const reopen = () => {
       // Régénérer la relève avec le message, puis revenir à l'aperçu
+      _keepDocs = [...checked];          // conserver les documents cochés
       closeSheet();
       if (_lastReport){
         const o = _lastReport.opts || {};

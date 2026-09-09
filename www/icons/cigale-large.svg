@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" role="img" aria-label="JM@Santé">
+  <g stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38 22 C34 14, 30 11, 27 9"/>
+    <path d="M62 22 C66 14, 70 11, 73 9"/>
+    <ellipse cx="50" cy="30" rx="15" ry="12"/>
+    <path d="M35 40 C20 44, 12 60, 16 76 C24 74, 33 62, 37 50"/>
+    <path d="M65 40 C80 44, 88 60, 84 76 C76 74, 67 62, 63 50"/>
+    <path d="M38 40 C38 62, 44 80, 50 88 C56 80, 62 62, 62 40"/>
+    <path d="M40 52 h20 M41 64 h18 M44 74 h12" stroke-width="2.6" opacity=".85"/>
+  </g>
+  <circle cx="43" cy="29" r="2.8" fill="currentColor"/>
+  <circle cx="57" cy="29" r="2.8" fill="currentColor"/>
+  <path d="M50 53 v14 M43 60 h14" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
+</svg>

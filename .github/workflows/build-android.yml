@@ -1,0 +1,119 @@
+name: Build JM@Santé APK
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main]
+    tags:     ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install npm dependencies
+        run: npm install
+
+      # ── Build app.js (prod sur tag, dev sinon) ───────────────────────────
+      - name: Build app.js
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            npm install -D esbuild && npm run build:prod
+          else
+            npm run build
+          fi
+
+      - name: Capacitor add android
+        run: npx cap add android
+
+      # ── Générer toutes les tailles d'icône Android depuis resources/icon.png ──
+      - name: Generate Android icons
+        run: |
+          pip install Pillow --quiet
+          python3 - <<'PYEOF'
+          from PIL import Image
+          import os, shutil
+
+          src = "resources/icon.png"
+          if not os.path.exists(src):
+              print("Pas de resources/icon.png — icônes par défaut conservées")
+              exit()
+
+          img = Image.open(src).convert("RGBA")
+
+          sizes = {
+              "mipmap-mdpi":    48,
+              "mipmap-hdpi":    72,
+              "mipmap-xhdpi":   96,
+              "mipmap-xxhdpi":  144,
+              "mipmap-xxxhdpi": 192,
+          }
+
+          for folder, px in sizes.items():
+              dest = f"android/app/src/main/res/{folder}"
+              os.makedirs(dest, exist_ok=True)
+              icon = img.resize((px, px), Image.LANCZOS)
+              icon.save(f"{dest}/ic_launcher.png")
+              icon.save(f"{dest}/ic_launcher_round.png")
+              # Foreground (110% du canvas pour les adaptive icons)
+              fg_px = int(px * 1.1)
+              fg = img.resize((fg_px, fg_px), Image.LANCZOS)
+              canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+              off = (px - fg_px) // 2
+              canvas.paste(fg, (off, off))
+              canvas.save(f"{dest}/ic_launcher_foreground.png")
+              print(f"  {folder}: {px}px ✓")
+
+          print("Icônes générées ✓")
+          PYEOF
+
+
+      # ── Post cap add : splash jour/nuit + plugin natif JMSaveFile (MediaStore) ──
+      - name: Post cap add (splash + native save plugin)
+        run: node scripts/postcap.js
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmsante-debug-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: "JM@Santé ${{ github.ref_name }}"

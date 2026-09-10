@@ -1,0 +1,37 @@
+{
+  "appId": "fr.jmsante.app",
+  "appName": "JM@Santé",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "showSpinner": false,
+      "backgroundColor": "#00000000"
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#04100A"
+    },
+    "Camera": {
+      "permissions": [
+        "camera",
+        "photos"
+      ]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#2BB3A3",
+      "sound": "beep.wav"
+    },
+    "CapacitorSQLite": {
+      "androidIsEncryption": true,
+      "androidBiometric": {
+        "biometricAuth": false
+      }
+    }
+  }
+}

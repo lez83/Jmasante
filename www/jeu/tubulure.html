@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Easter Egg IDEL - Tubulure Snake (100% Autonome)</title>
+    <!-- ZERO DEPENDANCE EXTERNE : CSS PUR & POLICES SYSTEME MONOSPACE -->
+    <style>
+        :root {
+            --bg-deep: #020705;
+            --bg-panel: #04140f;
+            --bg-card: #061c15;
+            --border-dim: #0a3829;
+            --border-bright: #10f7a5;
+            --neon-green: #10f7a5;
+            --neon-cyan: #38bdf8;
+            --neon-amber: #f59e0b;
+            --neon-rose: #f43f5e;
+            --text-dim: #649483;
+            --text-bright: #d1fae5;
+            --font-mono: 'Consolas', 'Courier New', 'Lucida Console', Monaco, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: var(--font-mono);
+            background-color: var(--bg-deep);
+            color: var(--neon-green);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        /* Effet balayage cathodique & lueur scope */
+        .crt-scan {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .glow-green {
+            text-shadow: 0 0 7px rgba(16, 247, 165, 0.65), 0 0 16px rgba(16, 247, 165, 0.3);
+        }
+        .glow-cyan {
+            text-shadow: 0 0 7px rgba(56, 189, 248, 0.65), 0 0 16px rgba(56, 189, 248, 0.3);
+        }
+        .glow-amber {
+            text-shadow: 0 0 7px rgba(245, 158, 11, 0.65), 0 0 16px rgba(245, 158, 11, 0.3);
+        }
+        .glow-alert {
+            text-shadow: 0 0 8px rgba(244, 63, 94, 0.8), 0 0 20px rgba(244, 63, 94, 0.4);
+        }
+
+        /* Structure du conteneur */
+        .app-container {
+            width: 100%;
+            max-width: 540px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 0 auto;
+        }
+
+        /* En-tête */
+        header {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-dim);
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .pulse-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--neon-green);
+            box-shadow: 0 0 8px var(--neon-green);
+            animation: pulse-dot 1.2s infinite;
+            margin-right: 6px;
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px var(--neon-green); }
+            100% { transform: scale(0.9); opacity: 0.5; }
+        }
+
+        .btn-link {
+            background: transparent;
+            border: 1px solid var(--border-dim);
+            color: var(--neon-green);
+            padding: 2px 7px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+        .btn-link:hover {
+            border-color: var(--neon-green);
+            background: rgba(16, 247, 165, 0.08);
+        }
+
+        /* Cartes de télémétrie */
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .telem-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            padding: 6px 4px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .telem-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-dim);
+            margin-bottom: 2px;
+        }
+
+        .telem-val {
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        .telem-unit {
+            font-size: 9px;
+            margin-left: 2px;
+            color: var(--text-dim);
+        }
+
+        /* Cadre écran scope */
+        .screen-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #010806;
+            border: 2px solid #0d543b;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.95), 0 0 20px rgba(16, 247, 165, 0.15);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Fenêtres modales et calques intérieurs */
+        .overlay-layer {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 9, 7, 0.92);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            text-align: center;
+            overflow-y: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .badge-mode {
+            display: inline-block;
+            background: rgba(6, 44, 33, 0.85);
+            border: 1px solid rgba(16, 247, 165, 0.4);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            margin-bottom: 6px;
+            color: var(--neon-green);
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--neon-green);
+            letter-spacing: 1px;
+        }
+
+        /* Légende didactique */
+        .legend-box {
+            background: #03140e;
+            border: 1px solid #0b4532;
+            border-radius: 8px;
+            padding: 8px 10px;
+            width: 100%;
+            max-width: 380px;
+            text-align: left;
+            font-size: 11px;
+            line-height: 1.45;
+            color: var(--text-bright);
+            margin-bottom: 12px;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .legend-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-icon {
+            flex-shrink: 0;
+            width: 18px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        /* Boutons d'action */
+        .btn-action {
+            width: 100%;
+            max-width: 320px;
+            padding: 11px 16px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.08s, background-color 0.15s, box-shadow 0.15s;
+        }
+        .btn-action:active {
+            transform: scale(0.96);
+        }
+
+        .btn-primary {
+            background: var(--neon-green);
+            color: #020c08;
+            box-shadow: 0 0 16px rgba(16, 247, 165, 0.4);
+        }
+        .btn-primary:hover {
+            background: #2efab1;
+            box-shadow: 0 0 22px rgba(16, 247, 165, 0.6);
+        }
+
+        .btn-danger {
+            background: var(--neon-rose);
+            color: #fff;
+            box-shadow: 0 0 16px rgba(244, 63, 94, 0.4);
+        }
+        .btn-danger:hover {
+            background: #f87171;
+            box-shadow: 0 0 22px rgba(244, 63, 94, 0.6);
+        }
+
+        .btn-secondary {
+            background: #062b1f;
+            border: 1px solid var(--border-dim);
+            color: var(--neon-green);
+            margin-top: 6px;
+            font-size: 11px;
+            padding: 7px 12px;
+        }
+        .btn-secondary:hover {
+            border-color: var(--neon-green);
+        }
+
+        /* Tableau des scores */
+        .scores-table {
+            width: 100%;
+            max-width: 360px;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+        .scores-table th {
+            text-align: left;
+            padding: 4px 6px;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border-dim);
+            font-weight: normal;
+        }
+        .scores-table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid #052217;
+            color: var(--text-bright);
+        }
+        .scores-table tr:first-child td {
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        /* Contrôles tactiles D-PAD */
+        .controls-area {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dpad-container {
+            display: grid;
+            grid-template-columns: repeat(3, 56px);
+            grid-template-rows: repeat(3, 44px);
+            gap: 6px;
+            place-items: center;
+            margin: 4px 0;
+        }
+
+        .dpad-key {
+            width: 56px;
+            height: 44px;
+            background: linear-gradient(145deg, #05241b, #02120d);
+            border: 1px solid #0f5c42;
+            border-radius: 8px;
+            color: var(--neon-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);
+            touch-action: manipulation;
+            cursor: pointer;
+            transition: all 0.08s ease;
+        }
+        .dpad-key:active {
+            transform: scale(0.92);
+            background: var(--neon-green);
+            color: #02100a;
+            box-shadow: 0 0 12px var(--neon-green);
+        }
+
+        .pause-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--neon-amber);
+            color: var(--neon-amber);
+            padding: 2px 7px;
+            font-size: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            z-index: 8;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Barre de monitoring supérieure -->
+        <header>
+            <div class="status-bar">
+                <div style="display:flex; align-items:center;">
+                    <span class="pulse-indicator"></span>
+                    <span style="font-weight:bold; letter-spacing:0.8px;">SCOPE IDEL • RELEVÉ INFIRMIER</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button id="btn-show-scores" class="btn-link" title="Afficher les meilleurs scores">🏆 SCORES</button>
+                    <button id="btn-audio-toggle" class="btn-link" title="Activer / Désactiver le son">🔊 SON</button>
+                </div>
+            </div>
+
+            <!-- Télémétrie clinique -->
+            <div class="telemetry-grid">
+                <div class="telem-card">
+                    <span class="telem-label">DÉBIT PERF</span>
+                    <div style="color: var(--neon-green);" class="glow-green">
+                        <span id="ui-flow-rate" class="telem-val">0</span>
+                        <span class="telem-unit">gtt/min</span>
+                    </div>
+                </div>
+                <div class="telem-card">
+                    <span class="telem-label">VOLUME TOTAL</span>
+                    <div style="color: var(--neon-cyan);" class="glow-cyan">
+                        <span id="ui-volume" class="telem-val">0</span>
+                        <span class="telem-unit">mL</span>
+                    </div>
+                </div>
+                <div class="telem-card">
+                    <span class="telem-label">DEXTRO (DX)</span>
+                    <div style="color: var(--neon-amber);" class="glow-amber">
+                        <span id="ui-glycemia" class="telem-val">1.00</span>
+                        <span class="telem-unit">g/L</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Zone de jeu (Écran de scope ECG) -->
+        <main class="screen-wrapper">
+            <canvas id="gameCanvas"></canvas>
+            <div class="crt-scan"></div>
+            <div id="pause-tag" class="pause-tag hidden">⏸ EN PAUSE</div>
+
+            <!-- MODAL 1 : Écran de démarrage & Légende didactique -->
+            <div id="modal-start" class="overlay-layer">
+                <span class="badge-mode">💉 MODULE DE TOURNEE • EASTER EGG</span>
+                <h1 class="modal-title glow-green">TUBULURE RUSH</h1>
+
+                <div class="legend-box">
+                    <div style="font-weight: bold; margin-bottom: 6px; color: var(--neon-green); text-transform: uppercase; font-size: 10px; border-bottom: 1px solid #094733; padding-bottom: 3px;">
+                        Protocole & Rôles des Éléments
+                    </div>
+                    <div class="legend-row">
+                        <span class="legend-icon">🟢</span>
+                        <div><strong>La Tubulure :</strong> La tête verte est la chambre compte-gouttes. Le corps s'allonge à chaque poche perfusée. Ne mordez pas la tubulure (risque de coude) !</div>
+                    </div>
+                    <div class="legend-row">
+                        <span class="legend-icon">💧</span>
+                        <div><strong>Sérum Phy / G5% :</strong> +50 à +100 mL de volume. Régule le débit sans pic d'alerte.</div>
+                    </div>
+                    <div class="legend-row">
+                        <span class="legend-icon">🍬</span>
+                        <div><strong>Glucosé G30% / Sucre :</strong> Resucrage express ! Augmente la glycémie, accélère le débit et octroie des points bonus.</div>
+                    </div>
+                    <div class="legend-row">
+                        <span class="legend-icon" style="color:#f87171;">⚠️</span>
+                        <div><strong>Potences métalliques :</strong> Pieds à perfusion fixes au milieu de la chambre. Choc = arrachement immédiat de la ligne !</div>
+                    </div>
+                </div>
+
+                <button id="btn-game-start" class="btn-action btn-primary">
+                    DÉMARRER LA PERFUSION
+                </button>
+                <div style="font-size: 10px; color: var(--text-dim); margin-top: 8px;">
+                    Flèches / ZQSD au clavier • Glissement tactile (swipe) ou D-Pad ci-dessous
+                </div>
+            </div>
+
+            <!-- MODAL 2 : Écran de Game Over (Occlusion) -->
+            <div id="modal-gameover" class="overlay-layer hidden">
+                <span class="badge-mode" style="border-color: rgba(244,63,94,0.5); color: #fca5a5; background: rgba(50,10,15,0.7);">
+                    ALARME NIVEAU 3
+                </span>
+                <h2 class="modal-title glow-alert" style="color: var(--neon-rose);">OCCLUSION DÉTECTÉE</h2>
+                <p id="gameover-motif" style="font-size: 11px; color: #fecdd3; max-width: 320px; margin-bottom: 12px; line-height: 1.4;">
+                    Rupture de tubulure.
+                </p>
+
+                <div style="background: #08120e; border: 1px solid #134433; border-radius: 6px; padding: 8px 14px; width: 100%; max-width: 280px; margin-bottom: 12px; text-align: left; font-size: 11px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--text-dim)">Volume injecté :</span>
+                        <strong id="final-vol" style="color:var(--neon-cyan)">0 mL</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="color:var(--text-dim)">Débit de pointe :</span>
+                        <strong id="final-rate" style="color:var(--neon-green)">0 gtt/min</strong>
+                    </div>
+                </div>
+
+                <button id="btn-game-restart" class="btn-action btn-danger">
+                    PURGER & RECOMMENCER
+                </button>
+            </div>
+
+            <!-- MODAL 3 : Tableau des 5 Meilleurs Scores (Persistant localStorage) -->
+            <div id="modal-scores" class="overlay-layer hidden">
+                <span class="badge-mode">ARCHIVE DES TRANSMISSIONS</span>
+                <h2 class="modal-title glow-green">TOP 5 PERFUSIONS</h2>
+
+                <table class="scores-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>VOLUME</th>
+                            <th>DÉBIT</th>
+                            <th>DATE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scores-tbody">
+                        <!-- Rempli dynamiquement -->
+                    </tbody>
+                </table>
+
+                <button id="btn-close-scores" class="btn-action btn-secondary" style="max-width:200px;">
+                    FERMER
+                </button>
+            </div>
+        </main>
+
+        <!-- Contrôles sous le moniteur (Bouton Pause + D-Pad virtuel) -->
+        <footer class="controls-area">
+            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--text-dim);">
+                <span>PAVÉ DIRECTIONNEL TACTILE</span>
+                <button id="btn-pause" class="btn-link" style="padding: 3px 10px;">PAUSE (ESPACE)</button>
+            </div>
+
+            <div class="dpad-container">
+                <div></div>
+                <button id="btn-up" class="dpad-key" aria-label="Haut">▲</button>
+                <div></div>
+
+                <button id="btn-left" class="dpad-key" aria-label="Gauche">◀</button>
+                <div style="width: 12px; height: 12px; border-radius: 50%; border: 1px dashed var(--border-dim); margin: auto;"></div>
+                <button id="btn-right" class="dpad-key" aria-label="Droite">▶</button>
+
+                <div></div>
+                <button id="btn-down" class="dpad-key" aria-label="Bas">▼</button>
+                <div></div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        /* Moteur Audio 100% Natif sans fichier externe via Web Audio API */
+        class ScopeAudio {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            ensure() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            toggle() {
+                this.muted = !this.muted;
+                return !this.muted;
+            }
+
+            beep(freq, duration = 0.08, type = 'sine', gainVal = 0.1) {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(gainVal, now);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + duration);
+                } catch(e) {}
+            }
+
+            bipGoutte() {
+                this.beep(980, 0.07, 'sine', 0.12);
+            }
+
+            bipSucre() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    [700, 950, 1200].forEach((freq, i) => {
+                        setTimeout(() => this.beep(freq, 0.06, 'triangle', 0.09), i * 45);
+                    });
+                } catch(e) {}
+            }
+
+            alarmeOcclusion() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    for (let i = 0; i < 3; i++) {
+                        setTimeout(() => {
+                            this.beep(460, 0.14, 'sawtooth', 0.18);
+                        }, i * 140);
+                    }
+                } catch(e) {}
+            }
+        }
+
+        const audio = new ScopeAudio();
+    </script>
+
+    <script>
+        /* Gestionnaire des 5 Meilleurs Scores dans localStorage */
+        const STORAGE_KEY = 'idel_tubulure_highscores';
+
+        function getHighScores() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) {
+                    // Données de base réalistes de tournée
+                    const defaults = [
+                        { volume: 850, rate: 64, date: 'Tournée hier' },
+                        { volume: 600, rate: 52, date: 'Tournée matinale' },
+                        { volume: 450, rate: 45, date: 'Tournée soir' },
+                        { volume: 300, rate: 36, date: 'Remplacement' },
+                        { volume: 150, rate: 28, date: 'Premier soin' }
+                    ];
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+                    return defaults;
+                }
+                return JSON.parse(raw);
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveCandidateScore(volume, rate) {
+            if (volume <= 0) return;
+            const scores = getHighScores();
+            const now = new Date();
+            const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}`;
+
+            scores.push({
+                volume: volume,
+                rate: rate,
+                date: dateStr
+            });
+
+            // Tri par volume décroissant puis par débit
+            scores.sort((a, b) => b.volume - a.volume || b.rate - a.rate);
+
+            // Conserver uniquement les 5 meilleurs
+            const top5 = scores.slice(0, 5);
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(top5));
+            } catch(e) {}
+            return top5;
+        }
+
+        function renderScoresTable() {
+            const tbody = document.getElementById('scores-tbody');
+            tbody.innerHTML = '';
+            const scores = getHighScores();
+
+            scores.forEach((sc, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td><strong>${sc.volume} mL</strong></td>
+                    <td>${sc.rate} gtt</td>
+                    <td style="font-size:9px; color:var(--text-dim);">${sc.date}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GRID_COUNT = 22; // 22x22 cellules
+        let cellPixels = 20;
+
+        // UI Dents & Télémesure
+        const uiFlowRate = document.getElementById('ui-flow-rate');
+        const uiVolume = document.getElementById('ui-volume');
+        const uiGlycemia = document.getElementById('ui-glycemia');
+        const pauseTag = document.getElementById('pause-tag');
+
+        // Fenêtres modales
+        const modalStart = document.getElementById('modal-start');
+        const modalGameOver = document.getElementById('modal-gameover');
+        const modalScores = document.getElementById('modal-scores');
+        const gameoverMotif = document.getElementById('gameover-motif');
+        const finalVolEl = document.getElementById('final-vol');
+        const finalRateEl = document.getElementById('final-rate');
+        const btnAudioToggle = document.getElementById('btn-audio-toggle');
+
+        // Types de flacons & perfusions
+        const MEDICAL_ITEMS = {
+            NACL: { code: 'NACL', color: '#38bdf8', label: 'NaCl 0.9%', ml: 50, rateDelta: 2, weight: 0.45 },
+            G5:   { code: 'G5',   color: '#34d399', label: 'G5%',       ml: 100, rateDelta: 3, weight: 0.25 },
+            G30:  { code: 'G30',  color: '#f59e0b', label: 'G30%',      ml: 150, rateDelta: 5, weight: 0.15 },
+            SUGAR:{ code: 'SUGAR',color: '#f43f5e', label: 'Sucre',      ml: 30,  rateDelta: 1, glycemia: 0.20, weight: 0.15 }
+        };
+
+        const gameState = {
+            running: false,
+            paused: false,
+            tubulure: [],
+            direction: { x: 1, y: 0 },
+            nextDirection: { x: 1, y: 0 },
+            poles: [], // Potences fixes
+            items: [], // Poches à ramasser
+            volumeMl: 0,
+            flowRate: 20, // gouttes / minute
+            glycemia: 1.00, // g/L
+            tickMs: 145,
+            lastTickTime: 0
+        };
+
+        // Redimensionnement fluide respectant la densité de pixels de l'écran
+        function resize() {
+            const container = canvas.parentElement;
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = Math.floor(size * window.devicePixelRatio);
+            canvas.height = Math.floor(size * window.devicePixelRatio);
+            cellPixels = canvas.width / GRID_COUNT;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function spawnPole() {
+            let tries = 0;
+            while (tries < 100) {
+                tries++;
+                const x = Math.floor(Math.random() * (GRID_COUNT - 4)) + 2;
+                const y = Math.floor(Math.random() * (GRID_COUNT - 4)) + 2;
+
+                const onSnake = gameState.tubulure.some(s => s.x === x && s.y === y);
+                const onPole = gameState.poles.some(p => p.x === x && p.y === y);
+                const nearStartLane = (y >= Math.floor(GRID_COUNT / 2) - 1 && y <= Math.floor(GRID_COUNT / 2) + 1);
+
+                if (!onSnake && !onPole && !nearStartLane) {
+                    gameState.poles.push({ x, y });
+                    break;
+                }
+            }
+        }
+
+        function pickRandomItemType() {
+            const r = Math.random();
+            let sum = 0;
+            for (const k in MEDICAL_ITEMS) {
+                sum += MEDICAL_ITEMS[k].weight;
+                if (r <= sum) return MEDICAL_ITEMS[k];
+            }
+            return MEDICAL_ITEMS.NACL;
+        }
+
+        function spawnMedicalItem() {
+            let tries = 0;
+            while (tries < 100) {
+                tries++;
+                const x = Math.floor(Math.random() * GRID_COUNT);
+                const y = Math.floor(Math.random() * GRID_COUNT);
+
+                const onSnake = gameState.tubulure.some(s => s.x === x && s.y === y);
+                const onPole = gameState.poles.some(p => p.x === x && p.y === y);
+                const onItem = gameState.items.some(it => it.x === x && it.y === y);
+
+                if (!onSnake && !onPole && !onItem) {
+                    gameState.items.push({
+                        x,
+                        y,
+                        spec: pickRandomItemType(),
+                        seed: Math.random() * 10
+                    });
+                    break;
+                }
+            }
+        }
+
+        function updateUI() {
+            uiFlowRate.textContent = gameState.flowRate;
+            uiVolume.textContent = gameState.volumeMl;
+            uiGlycemia.textContent = gameState.glycemia.toFixed(2);
+        }
+
+        function startNewGame() {
+            audio.ensure();
+            const sx = Math.floor(GRID_COUNT / 4);
+            const sy = Math.floor(GRID_COUNT / 2);
+
+            gameState.tubulure = [
+                { x: sx + 3, y: sy },
+                { x: sx + 2, y: sy },
+                { x: sx + 1, y: sy },
+                { x: sx, y: sy }
+            ];
+
+            gameState.direction = { x: 1, y: 0 };
+            gameState.nextDirection = { x: 1, y: 0 };
+            gameState.volumeMl = 0;
+            gameState.flowRate = 20;
+            gameState.glycemia = 1.00;
+            gameState.tickMs = 145;
+            gameState.poles = [];
+            gameState.items = [];
+
+            // 4 potences fixes au départ
+            for (let i = 0; i < 4; i++) spawnPole();
+
+            // 2 flacons disponibles immédiatement
+            spawnMedicalItem();
+            spawnMedicalItem();
+
+            updateUI();
+            gameState.running = true;
+            gameState.paused = false;
+
+            modalStart.classList.add('hidden');
+            modalGameOver.classList.add('hidden');
+            modalScores.classList.add('hidden');
+            pauseTag.classList.add('hidden');
+
+            gameState.lastTickTime = performance.now();
+        }
+
+        function triggerOcclusion(reason) {
+            gameState.running = false;
+            audio.alarmeOcclusion();
+
+            saveCandidateScore(gameState.volumeMl, gameState.flowRate);
+
+            gameoverMotif.textContent = reason;
+            finalVolEl.textContent = `${gameState.volumeMl} mL`;
+            finalRateEl.textContent = `${gameState.flowRate} gtt/min`;
+
+            modalGameOver.classList.remove('hidden');
+        }
+
+        function gameTick() {
+            gameState.direction = { ...gameState.nextDirection };
+            const head = gameState.tubulure[0];
+            const nextX = head.x + gameState.direction.x;
+            const nextY = head.y + gameState.direction.y;
+
+            // 1. Sortie de champ
+            if (nextX < 0 || nextX >= GRID_COUNT || nextY < 0 || nextY >= GRID_COUNT) {
+                triggerOcclusion("Tubulure arrachée : sortie hors de la zone de sécurité patient !");
+                return;
+            }
+
+            // 2. Morsure / Boucle dans la tubulure
+            for (let i = 0; i < gameState.tubulure.length; i++) {
+                if (gameState.tubulure[i].x === nextX && gameState.tubulure[i].y === nextY) {
+                    triggerOcclusion("Coude étanche sur la tubulure : occlusion totale du débit !");
+                    return;
+                }
+            }
+
+            // 3. Collision avec potence
+            for (const pole of gameState.poles) {
+                if (pole.x === nextX && pole.y === nextY) {
+                    triggerOcclusion("Choc brutal contre le pied métallique de potence !");
+                    return;
+                }
+            }
+
+            // Avance
+            gameState.tubulure.unshift({ x: nextX, y: nextY });
+
+            // Ramassage
+            let foundIdx = -1;
+            for (let i = 0; i < gameState.items.length; i++) {
+                if (gameState.items[i].x === nextX && gameState.items[i].y === nextY) {
+                    foundIdx = i;
+                    break;
+                }
+            }
+
+            if (foundIdx !== -1) {
+                const item = gameState.items[foundIdx];
+                gameState.volumeMl += item.spec.ml;
+                gameState.flowRate = Math.min(120, gameState.flowRate + item.spec.rateDelta);
+
+                if (item.spec.glycemia) {
+                    gameState.glycemia = Math.min(2.8, gameState.glycemia + item.spec.glycemia);
+                    audio.bipSucre();
+                } else {
+                    audio.bipGoutte();
+                }
+
+                // Ajustement de la vitesse de perfusion
+                gameState.tickMs = Math.max(75, 145 - Math.floor(gameState.flowRate * 0.55));
+
+                gameState.items.splice(foundIdx, 1);
+                spawnMedicalItem();
+
+                // Ajout d'une potence supplémentaire tous les 6 flacons (max 8)
+                if (gameState.tubulure.length % 6 === 0 && gameState.poles.length < 8) {
+                    spawnPole();
+                }
+
+                updateUI();
+            } else {
+                gameState.tubulure.pop();
+            }
+        }
+    </script>
+
+    <script>
+        function drawGrid() {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Fond oscilloscope sombre
+            ctx.fillStyle = '#020b08';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grille ECG fine
+            ctx.strokeStyle = '#042218';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= GRID_COUNT; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellPixels, 0);
+                ctx.lineTo(i * cellPixels, h);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellPixels);
+                ctx.lineTo(w, i * cellPixels);
+                ctx.stroke();
+            }
+
+            // Quadrant central repère
+            ctx.strokeStyle = '#0a4230';
+            ctx.lineWidth = 1.5;
+            const mid = Math.floor(GRID_COUNT / 2) * cellPixels;
+            ctx.beginPath();
+            ctx.moveTo(mid, 0);
+            ctx.lineTo(mid, h);
+            ctx.moveTo(0, mid);
+            ctx.lineTo(w, mid);
+            ctx.stroke();
+        }
+
+        function drawPoles() {
+            ctx.save();
+            for (const p of gameState.poles) {
+                const cx = (p.x + 0.5) * cellPixels;
+                const cy = (p.y + 0.5) * cellPixels;
+                const r = cellPixels * 0.40;
+
+                // Embase trépied potence
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx - r * 0.8, cy + r * 0.9);
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + r * 0.8, cy + r * 0.9);
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx, cy - r);
+                ctx.stroke();
+
+                // Axe vertical métallique
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.arc(cx, cy, r * 0.32, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Marqueur zone de danger
+                ctx.strokeStyle = 'rgba(244, 63, 94, 0.45)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(p.x * cellPixels + 2, p.y * cellPixels + 2, cellPixels - 4, cellPixels - 4);
+            }
+            ctx.restore();
+        }
+
+        function drawItems(ts) {
+            ctx.save();
+            for (const it of gameState.items) {
+                const cx = (it.x + 0.5) * cellPixels;
+                const cy = (it.y + 0.5) * cellPixels;
+                const bob = Math.sin(ts * 0.005 + it.seed) * (cellPixels * 0.08);
+
+                ctx.shadowColor = it.spec.color;
+                ctx.shadowBlur = 8;
+
+                if (it.spec.code === 'SUGAR') {
+                    // Morceau de sucre
+                    const sz = cellPixels * 0.5;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.lineWidth = 1.5;
+                    ctx.fillRect(cx - sz / 2, cy - sz / 2 + bob, sz, sz);
+                    ctx.strokeRect(cx - sz / 2, cy - sz / 2 + bob, sz, sz);
+                } else {
+                    // Poche de perfusion
+                    const bw = cellPixels * 0.48;
+                    const bh = cellPixels * 0.65;
+                    const topY = cy - bh / 2 + bob;
+
+                    ctx.fillStyle = it.spec.color;
+                    ctx.globalAlpha = 0.85;
+                    ctx.beginPath();
+                    if (ctx.roundRect) {
+                        ctx.roundRect(cx - bw / 2, topY, bw, bh, [3, 3, 6, 6]);
+                    } else {
+                        ctx.rect(cx - bw / 2, topY, bw, bh);
+                    }
+                    ctx.fill();
+
+                    // Niveau de liquide
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.5;
+                    ctx.fillRect(cx - bw / 2 + 2, topY + 3, bw - 4, 3);
+
+                    // Crochet de potence
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(cx, topY - 2, 2.5, Math.PI, 0);
+                    ctx.stroke();
+
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawTubulure(ts) {
+            if (gameState.tubulure.length === 0) return;
+
+            ctx.save();
+            // 1. Tuyau de perfusion souple
+            ctx.beginPath();
+            for (let i = 0; i < gameState.tubulure.length; i++) {
+                const seg = gameState.tubulure[i];
+                const cx = (seg.x + 0.5) * cellPixels;
+                const cy = (seg.y + 0.5) * cellPixels;
+                if (i === 0) ctx.moveTo(cx, cy);
+                else ctx.lineTo(cx, cy);
+            }
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Gaine silicone externe
+            ctx.strokeStyle = 'rgba(16, 247, 165, 0.25)';
+            ctx.lineWidth = cellPixels * 0.65;
+            ctx.stroke();
+
+            // Conduit de liquide
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = cellPixels * 0.32;
+            ctx.stroke();
+
+            // Gouttes mobiles dans la tubulure
+            const dropOffset = (ts * 0.02) % cellPixels;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = cellPixels * 0.16;
+            ctx.setLineDash([cellPixels * 0.22, cellPixels * 0.45]);
+            ctx.lineDashOffset = -dropOffset;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 2. Chambre compte-gouttes (tête de la tubulure)
+            const head = gameState.tubulure[0];
+            const hx = (head.x + 0.5) * cellPixels;
+            const hy = (head.y + 0.5) * cellPixels;
+
+            ctx.shadowColor = '#10f7a5';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#063f30';
+            ctx.strokeStyle = '#10f7a5';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.arc(hx, hy, cellPixels * 0.42, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Micro-goutte intérieure
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath();
+            const osc = Math.sin(ts * 0.015) * 2;
+            ctx.arc(hx, hy + osc, cellPixels * 0.15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function gameLoop(ts) {
+            drawGrid();
+            drawPoles();
+            drawItems(ts);
+            drawTubulure(ts);
+
+            if (gameState.running && !gameState.paused) {
+                if (ts - gameState.lastTickTime >= gameState.tickMs) {
+                    gameTick();
+                    gameState.lastTickTime = ts;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+
+    <script>
+        function requestDirection(dx, dy) {
+            if (!gameState.running || gameState.paused) return;
+            if (dx !== 0 && gameState.direction.x !== -dx) {
+                gameState.nextDirection = { x: dx, y: 0 };
+            } else if (dy !== 0 && gameState.direction.y !== -dy) {
+                gameState.nextDirection = { x: 0, y: dy };
+            }
+        }
+
+        function togglePause() {
+            if (!gameState.running) return;
+            gameState.paused = !gameState.paused;
+            if (gameState.paused) {
+                pauseTag.classList.remove('hidden');
+            } else {
+                pauseTag.classList.add('hidden');
+                gameState.lastTickTime = performance.now();
+            }
+        }
+
+        // Clavier (Flèches & ZQSD / WASD)
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) {
+                e.preventDefault();
+            }
+
+            if (!gameState.running && (key === 'enter' || key === ' ')) {
+                startNewGame();
+                return;
+            }
+
+            if (key === ' ' || key === 'p') {
+                togglePause();
+                return;
+            }
+
+            switch (key) {
+                case 'arrowup':
+                case 'z':
+                case 'w':
+                    requestDirection(0, -1);
+                    break;
+                case 'arrowdown':
+                case 's':
+                    requestDirection(0, 1);
+                    break;
+                case 'arrowleft':
+                case 'q':
+                case 'a':
+                    requestDirection(-1, 0);
+                    break;
+                case 'arrowright':
+                case 'd':
+                    requestDirection(1, 0);
+                    break;
+            }
+        });
+
+        // Touches du D-Pad tactile
+        const bindKey = (id, dx, dy) => {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                audio.ensure();
+                requestDirection(dx, dy);
+            }, { passive: false });
+            btn.addEventListener('click', () => {
+                audio.ensure();
+                requestDirection(dx, dy);
+            });
+        };
+
+        bindKey('btn-up', 0, -1);
+        bindKey('btn-down', 0, 1);
+        bindKey('btn-left', -1, 0);
+        bindKey('btn-right', 1, 0);
+
+        // Détection de glissement tactile (Swipe sur l'écran du scope)
+        let touchX = 0;
+        let touchY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            audio.ensure();
+            if (e.touches.length > 0) {
+                touchX = e.touches[0].clientX;
+                touchY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (e.changedTouches.length === 0) return;
+            const dx = e.changedTouches[0].clientX - touchX;
+            const dy = e.changedTouches[0].clientY - touchY;
+            const minSwipe = 22;
+
+            if (Math.max(Math.abs(dx), Math.abs(dy)) > minSwipe) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    requestDirection(dx > 0 ? 1 : -1, 0);
+                } else {
+                    requestDirection(0, dy > 0 ? 1 : -1);
+                }
+            }
+        }, { passive: true });
+
+        // Boutons généraux
+        document.getElementById('btn-game-start').addEventListener('click', startNewGame);
+        document.getElementById('btn-game-restart').addEventListener('click', startNewGame);
+        document.getElementById('btn-pause').addEventListener('click', togglePause);
+
+        // Bouton Son
+        btnAudioToggle.addEventListener('click', () => {
+            audio.ensure();
+            const on = audio.toggle();
+            btnAudioToggle.textContent = on ? '🔊 SON' : '🔇 MUET';
+        });
+
+        // Fenêtre des scores
+        document.getElementById('btn-show-scores').addEventListener('click', () => {
+            renderScoresTable();
+            modalScores.classList.remove('hidden');
+        });
+        document.getElementById('btn-close-scores').addEventListener('click', () => {
+            modalScores.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+appId: fr.jmsante.app
+productName: JM@Santé
+copyright: JM@Santé — Logiciel de relève pour IDEL
+
+directories:
+  output: dist-electron
+  buildResources: resources
+
+files:
+  - electron/**
+  - www/**
+  - "!www/**/*.map"
+  - package.json
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: JM@Santé
+  artifactName: JMSante-Setup-${version}.exe
+
+portable:
+  artifactName: JMSante-Portable-${version}.exe

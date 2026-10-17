@@ -1,0 +1,1809 @@
+/* ============================================================
+   JM@Santé — Copyright © 2026 JmCve83. Tous droits réservés.
+   Reproduction, redistribution et décompilation interdites
+   sans autorisation écrite. Voir LICENSE.md.
+============================================================ */
+function lastVisit(p){ return [...p.visits].sort((a,b)=>(a.date+a.at).localeCompare(b.date+b.at)).pop(); }
+/* Oublier toute saisie gardée pour ce patient.
+   ⚠️ On balaie aussi les valeurs par leur `pid` : une entrée écrite par
+   une version antérieure, sous une autre clé, resterait sinon collée à
+   la carte — l'étiquette « saisie en attente » sans moyen de l'enlever. */
+function oublierBrouillon(pid){
+  const d = S.drafts || {};
+  let n = 0;
+  Object.keys(d).forEach(k => {
+    if (k === pid || (d[k] && d[k].pid === pid)){ delete d[k]; n++; }
+  });
+  return n;
+}
+
+/* ⚠️ LE STATUT SE LIT PAR CRÉNEAU, ET PAR RANG.
+   Jusqu'à la v1.14.0 incluse, cette fonction répondait « vu » dès qu'il
+   existait UN passage dans la journée, sans regarder le créneau — alors
+   que chaque passage enregistre pourtant le sien (`v.slot`). Un patient
+   vu le matin passait donc au vert dans la vue du soir : LE PASSAGE DU
+   SOIR DISPARAISSAIT AVANT D'AVOIR EU LIEU. Mesuré sur la démo, pas
+   supposé : « statut en soir = done · compteurs soir : à voir 0, vus 1 ».
+
+   ⚠️ LE RANG sert au passage supplémentaire : le Nᵉ passage enregistré
+   dans un créneau remplit la Nᵉ occurrence, dans l'ordre des heures.
+   Aucun champ nouveau sur la visite — on compte, c'est tout. Un champ de
+   plus aurait fallu l'écrire à la saisie, le migrer, et le réparer quand
+   il manque.
+
+   ⚠️ SANS CRÉNEAUX, RIEN NE CHANGE : `slot` arrive indéfini, le filtrage
+   ne s'applique pas, le rang vaut 1, et la réponse est exactement celle
+   d'avant. C'est le gros des dossiers existants, il ne doit rien sentir. */
+function statusOf(p, slot, rang){
+  const t = workDate();
+  if (rapOf(p.id).some(r=>r.type==="absence" && r.due>=t)) return "absent";
+  // Marqué « pas de passage prévu » aujourd'hui (valable pour la journée seulement)
+  if ((S.noVisit||{})[p.id] === t && !p.visits.some(v=>v.date===t)) return "novisit";
+  const todayV = p.visits.filter(v=>v.date===t);
+  const auCreneau = (slot && slot !== "jour" && slotsOn())
+    ? todayV.filter(v => (v.slot || defaultSlot()) === slot)
+    : todayV;
+  /* Par heure : c'est l'ordre réel des passages, et il décide quel rang
+     est rempli. Une heure manquante se range au début, faute de mieux. */
+  const faits = auCreneau.slice()
+    .sort((a, b) => String(a.at||"").localeCompare(String(b.at||"")));
+  const r = (rang > 1) ? rang : 1;
+  /* ⚠️ LES SEUILS DU PATIENT MANQUAIENT ICI. `alertes(v.consts)` était
+     appelé sans `p.thresholds`, alors que l'affichage de la valeur, lui,
+     les passait. Mesuré : une patiente dont le seuil de tension est relevé
+     à 18, avec un relevé à 17/9, ne produisait plus d'alerte au calcul —
+     et sa carte restait pourtant rouge. Régler un seuil enlevait le rouge
+     sur le chiffre et laissait la carte en alerte : le réglage semblait
+     ne servir à rien.
+     La sourdine du passage (`v.sourdine`) entre par le même chemin. */
+  if (faits[r-1])
+    return auCreneau.some(v => alertes(v.consts, p.thresholds, v.sourdine).length) ? "alert" : "done";
+  /* Rien à ce rang : il reste à voir. Le premier rang hérite en plus de
+     la vigilance du dernier passage connu — signal d'avant la tournée. */
+  if (r === 1 && !faits.length){
+    const lv = lastVisit(p);
+    return (lv && alertes(lv.consts, p.thresholds, lv.sourdine).length) ? "alert" : "todo";
+  }
+  return "todo";
+}
+function vitalsHtml(c, al, thr, p){
+  const _vThr = thr;
+  /* v1.0.62 : ordre et constantes masquées ; carte « sans constantes » →
+     seules les valeurs hors seuil restent (signal de vigilance). */
+  /* v1.0.63 : ligne ① réglable (active, constantes choisies) ; les valeurs
+     hors seuil passent outre si « toujours visibles » est actif. */
+  /* ⚠️ Le patient est transmis : un dossier peut avoir son propre
+     réglage. Les valeurs hors seuil restent affichées malgré tout — voir
+     `_altOn` juste en dessous : c'est un signal de vigilance. */
+  const _ligneOn = typeof ligneActive !== "function" || ligneActive(p);
+  const _altOn = typeof alertesToujours !== "function" || alertesToujours();
+  /* v1.0.58 : sens du dépassement ↑/↓ (rouge / bleu), dans les deux modes */
+  /* ⚠️ `mute` : les constantes déjà mises en sourdine sur ce passage. Elles
+     ne sont plus dans `al` — donc plus rouges — mais on les marque d'un 🔕
+     pour que l'écart se voie. Une alerte tue sans trace visible redeviendrait
+     une valeur ordinaire, et personne ne saurait qu'il y avait eu un signal.
+     ⚠️ `cliquable` : sur la carte, une valeur en alerte s'appuie pour ouvrir
+     la mise en sourdine. Ailleurs (listing, tuiles, documents) elle reste du
+     texte — un bouton dans un document imprimé n'a pas de sens. */
+  const _mute = (p && p._muteCourant) || {};
+  const parts=[]; const push=(k,lbl,unit)=>{ if(c&&c[k]){ const b=isBad(k,al);
+    const sn = b && typeof sensConst==="function" ? sensConst(k, c[k], _vThr) : "";
+    const tu = (k in _mute);
+    const act = (b || tu) && p && p._muteCliquable
+      ? ` data-mute="${esc(p.id)}|${esc(k)}" role="button" tabindex="0"` : "";
+    parts.push(`<b class="${b?"bad":""} ${tu?"tu":""} ${sn}"${act}>${lbl} ${esc(c[k])}${unit||""}${
+      sn==="hi"?" ↑":sn==="lo"?" ↓":""}${tu?" 🔕":""}</b>`); } };
+  const _lbl = { ta:["TA"], temp:["T°","°"], sat:["Sat","%"], puls:["♥"], glyc:["Gly"], douleur:["EVA"] };
+  const _ord = typeof ordreConst === "function" ? ordreConst() : ["ta","temp","sat","puls","glyc","douleur"];
+  _ord.forEach(k => {
+    const bad = c && c[k] && isBad(k, al);
+    /* ⚠️ Une valeur mise en sourdine reste affichée comme une valeur hors
+       seuil : c'est ce qu'elle est. La taire ET la masquer effacerait
+       l'information que le soignant doit pouvoir interpréter lui-même. */
+    const tue = c && c[k] && (k in _mute);
+    const choisie = _ligneOn && (typeof constVisible !== "function" || constVisible(k, p, "ligne"));
+    if (!choisie && !((bad || tue) && _altOn)) return;
+    push(k, _lbl[k][0], _lbl[k][1]);
+  });
+  // Rien à afficher plutôt qu'une ligne « aucune constante connue » qui prend
+  // de la place pour ne rien dire (surtout sur les grosses tournées).
+  return parts.join(" · ");
+}
+
+function renderWelcomeInline(){
+  const board = document.getElementById("board");
+  const synth = document.getElementById("synth");
+  const filters = document.getElementById("filters");
+  if (synth) synth.innerHTML = "";
+  if (filters) filters.innerHTML = "";
+  // fermer tout overlay résiduel
+  const veil = document.getElementById("veil"); if (veil) veil.classList.remove("on");
+  if (!board) return;
+  // Sortir le board de sa grille 2 colonnes pour l'écran de bienvenue
+  board.style.display = "block";
+  board.innerHTML = `
+    <div class="welcome-card">
+      <svg viewBox="0 0 100 100" class="cig-big" aria-hidden="true"><g stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M38 22 C34 14, 30 11, 27 9"/><path d="M62 22 C66 14, 70 11, 73 9"/><ellipse cx="50" cy="30" rx="15" ry="12"/><path d="M35 40 C20 44, 12 60, 16 76 C24 74, 33 62, 37 50"/><path d="M65 40 C80 44, 88 60, 84 76 C76 74, 67 62, 63 50"/><path d="M38 40 C38 62, 44 80, 50 88 C56 80, 62 62, 62 40"/><path d="M40 52 h20 M41 64 h18 M44 74 h12" stroke-width="2.6" opacity=".85"/></g><circle cx="43" cy="29" r="2.8" fill="currentColor"/><circle cx="57" cy="29" r="2.8" fill="currentColor"/><path d="M50 53 v14 M43 60 h14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" fill="none"/></svg>
+      <h2 class="wc-title">Bienvenue dans JM@Santé</h2>
+      <div class="wc-slogan">Tout est dans la cigale</div>
+      <p class="wc-lead">Ton carnet de <b>relève infirmière</b> : tu saisis tes passages au fil de la tournée, l'app rédige la relève à envoyer au collègue ou au médecin.</p>
+      <div class="wc-features">
+        <div class="wc-f"><span class="wc-ic">🗺️</span><span><b>Tournées</b><br>Un cabinet = une tournée, avec son ordre de passage</span></div>
+        <div class="wc-f"><span class="wc-ic">👤</span><span><b>Patients</b><br>Tape une carte pour saisir le passage du jour</span></div>
+        <div class="wc-f"><span class="wc-ic">🎤</span><span><b>Note rapide</b><br>Pour noter vite entre deux visites, au clavier ou à sa dictée</span></div>
+        <div class="wc-f"><span class="wc-ic">📋</span><span><b>Relève</b><br>Génère et envoie en texte, PDF, HTML ou Word</span></div>
+        <div class="wc-f"><span class="wc-ic">🔄</span><span><b>Partage</b><br>Synchronise tes données avec un collègue</span></div>
+        <div class="wc-f"><span class="wc-ic">🔒</span><span><b>Sécurité</b><br>Code PIN, empreinte, données chiffrées sur ton téléphone</span></div>
+      </div>
+      <button class="btn btn-primary" id="wl-demo-in" style="width:100%;margin-top:4px">Découvrir avec la démo</button>
+      <button class="btn btn-ghost" id="wl-empty-in" style="width:100%;margin-top:8px">Commencer avec mes propres patients</button>
+    </div>`;
+  const finish = () => {
+    const b = document.getElementById("board");
+    if (b) b.style.display = "";   // rétablit la grille
+    try { delete S.firstRun; save(); } catch(e){}
+    render();
+  };
+  const demo = document.getElementById("wl-demo-in");
+  const empty = document.getElementById("wl-empty-in");
+  if (demo) demo.onclick = finish;
+  if (empty) empty.onclick = () => {
+    S.patients = []; S.rappels = []; S.tours = ["Ma tournée"]; S.curTour = "Ma tournée"; S.patientOrder = {};
+    const b = document.getElementById("board");
+    if (b) b.style.display = "";
+    try { delete S.firstRun; save(); } catch(e){}
+    render();
+    toast("C'est parti — crée ton premier patient avec ＋");
+  };
+}
+
+function render(){
+  /* Frise sous la barre d'outils — un motif par thème.
+     Redessinée seulement si le thème a changé (évite de relancer
+     les animations à chaque render). */
+  { const fr = document.getElementById("frise");
+    const _th = (typeof themeEffectif === "function" ? themeEffectif() : S.theme) || "hopital";   // v1.0.64 : thème effectif (jour/nuit)
+    if (fr && fr.dataset.th !== _th){
+      fr.dataset.th = _th;
+      {
+        fr.innerHTML = _th === "cosmos" && typeof friseCosmos === "function" ? friseCosmos() : friseSvg(_th); }
+    } }
+
+  const wd = workDate();
+  $("#h-date").textContent = new Date(wd + "T12:00:00")
+    .toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+  $("#h-date").parentElement.classList.toggle("past", !isToday());
+  { const nx = $("#d-next"); if (nx) nx.disabled = isToday(); }
+
+  /* ⚠️ Le bandeau des alertes est redessiné à CHAQUE rendu, pas une fois
+     au démarrage : on coche un rappel, il doit disparaître aussitôt. */
+  if (typeof alertesBandeau === "function") alertesBandeau();
+
+  /* Bandeau de saisie différée : impossible d'oublier qu'on est dans le passé */
+  const dbar = document.getElementById("datebar");
+  if (dbar){
+    if (isToday()) dbar.innerHTML = "";
+    else dbar.innerHTML = `<div class="dpast">
+      <span class="dp-i">⏱</span>
+      <span class="dp-t">Saisie différée — <b>${workDateLabel()}</b><br>
+        <span class="dp-s">Les passages validés porteront la date du ${fmtFR(wd)}</span></span>
+      <button class="dp-b" id="dp-today">↩︎ Aujourd'hui</button>
+    </div>`;
+    const bt = document.getElementById("dp-today");
+    if (bt) bt.onclick = () => { setWorkDate(null); openId = null; render(); toast("Retour à aujourd'hui"); };
+  }
+  // Écran de bienvenue INLINE au premier lancement (jamais modal → jamais figé)
+  if (S.firstRun){ renderWelcomeInline(); return; }
+  const _b = document.getElementById("board");
+  if (_b && _b.style.display === "block") _b.style.display = "";  // rétablit la grille
+  // Barre des tournées
+  $("#tourbar").innerHTML =
+    `<div class="rowlab ac"><span>Tournée</span><i></i></div>
+     <div class="rowbox ac">` +
+    `<button class="fchip ${S.curTour==="all"?"on":""}" data-t="all">🗺 Toutes</button>` +
+    S.tours.map(t => `<button class="fchip ${S.curTour===t?"on":""}" data-t="${esc(t)}">${esc(t)}</button>`).join("") +
+    // Vider l'affichage sans changer de tournée — écran net à la demande
+    /* ⚠️ `vide` plutôt qu'un `style="border-style:dashed"` en dur : le
+       pointillé est une INFORMATION (aucune tournée), il lui faut une
+       classe que la feuille de style puisse reprendre — c'est elle qui
+       doit décider de la couleur du trait selon le fini. */
+    `<button class="fchip vide ${S.curTour==="none"?"on":""}" data-t="none">🚫 Aucune</button>` +
+    `</div>`;
+  $$("#tourbar .fchip").forEach(b => b.onclick = () => { S.curTour = b.dataset.t; save(); openId=null; render(); });
+  // Bandeau créneau Matin/Soir (si activé et tournée précise)
+  const slotBar = document.getElementById("slotbar");
+  if (slotBar){
+    if (slotsOn(S.curTour)){
+      const cur = activeSlot();
+      slotBar.style.display = "flex";
+      slotBar.innerHTML =
+        `<div class="rowlab am"><span>Moment</span><i></i></div>
+         <div class="rowbox am">
+           <button class="fchip ${cur==="matin"?"on":""}" data-slot="matin">☀️ Matin</button>
+           <button class="fchip ${cur==="soir" ?"on":""}" data-slot="soir">🌙 Soir</button>
+           <button class="fchip ${cur==="jour" ?"on":""}" data-slot="jour">📅 Journée</button>
+         </div>`;
+      slotBar.querySelectorAll(".fchip").forEach(b => b.onclick = () => { _viewSlot = b.dataset.slot; openId=null; render(); });
+    } else { slotBar.style.display = "none"; slotBar.innerHTML = ""; }
+  }
+
+  const tour = S.curTour;
+  // Mode compact (grosses tournées) : masque les constantes normales
+  document.body.classList.toggle("compact-board", !!S.compactBoard);
+  const slot = activeSlot();
+  let pool = tour === "none" ? []
+           : tour === "all"
+    ? activeP()
+    : activeP().filter(p => inTourSlot(p, tour, slot));
+  pool = sortBySlot(pool, tour, slot);
+  /* ⚠️ LE PLATEAU LISTE DES PASSAGES, PLUS DES PATIENTS. Un dossier à
+     passage supplémentaire apparaît deux fois dans son créneau, et les
+     compteurs doivent dire « 4 à voir » quand il reste quatre passages à
+     faire chez trois personnes. C'est ça, « conforme au terrain ». */
+  const items = occurrencesTriees(pool, tour, slot);
+  const st = items.map(it => statusOf(it.p, slot, it.rang));
+  const poolIds = new Set(pool.map(p=>p.id));
+
+  /* Le drapeau de clôture ne flotte plus en permanence : il apparaît
+     pendant le déroulé, ou dès qu'un passage existe sur la journée.
+     Sinon il masque les libellés des cartes pour rien. */
+  { const fab = document.getElementById("fab-endtour");
+    if (fab) fab.classList.toggle("on",
+      (typeof seqActive !== "undefined" && seqActive) || st.some(x => x === "done" || x === "alert"));
+  }
+  /* Les compteurs SONT les filtres : « À voir », « Vus » et « Vigilance »
+     figuraient deux fois (compteur + bouton), ce qui allongeait la barre
+     jusqu'au défilement horizontal. Un tap filtre, un second remet Tous. */
+  const nRap = S.rappels.filter(r=>!r.done && (!r.pid || poolIds.has(r.pid))).length;
+  $("#synth").innerHTML = `
+    <div class="rowlab bl"><span>Avancement</span><i></i><em>tape pour filtrer</em></div>
+    <div class="rowbox bl">
+      <button class="spill ${filter==="todo"?"on":""}"  data-f="todo"><div class="n">${st.filter(x=>x==="todo").length}</div><div class="l">À voir</div></button>
+      <button class="spill ok ${filter==="done"?"on":""}"   data-f="done"><div class="n">${st.filter(x=>x==="done").length}</div><div class="l">Vus</div></button>
+      <button class="spill warn ${filter==="alert"?"on":""}" data-f="alert"><div class="n">${st.filter(x=>x==="alert").length}</div><div class="l">Vigilance</div></button>
+      <button class="spill" data-a="new-rappel"><div class="n">${nRap}</div><div class="l">Rappels</div></button>
+    </div>`;
+  /* À voir · Vus · Vigilance sont désormais dans les compteurs — plus de doublon ici. */
+  /* ══ DEUX RANGÉES, DEUX QUESTIONS ══ (v1.15.0)
+     ⚠️ « Afficher » répond à QUOI MONTRER, « Vue » à COMMENT LE MONTRER.
+     Les cinq pastilles vivaient dans une seule boîte, de même forme et
+     de même poids : l'œil y lisait une famille à cinq choix, elles
+     débordaient en 4 + 1, et les deux dernières étaient des icônes
+     muettes — un `title` ne s'affiche jamais au doigt.
+
+     ⚠️ TROIS ÉTATS EXCLUSIFS, et c'est un changement assumé. Compact et
+     Liste étaient deux interrupteurs indépendants, dont L'UN NE FAISAIT
+     RIEN quand l'autre était allumé : toutes les règles de
+     `body.compact-board` visent `.pcard`, aucune ne touche aux lignes du
+     listing. On appuyait sur un bouton qui ne répondait pas, sans que
+     rien ne le dise. Un choix unique à trois valeurs supprime le
+     mensonge au lieu de l'habiller. */
+  const F = [["all","Tous"],["novisit","🚫 Sans passage"],["absent","Absents"]];
+  const VUES = [["cartes","🪪","Cartes"],["compact","📑","Compact"],["liste","☰","Liste"]];
+  const vueCourante = S.boardListe ? "liste" : (S.compactBoard ? "compact" : "cartes");
+  $("#filters").innerHTML =
+    `<div class="rowlab nt"><span>Afficher</span><i></i></div>
+     <div class="rowbox nt" style="margin-bottom:9px">`
+    + F.map(([k,l]) => `<button class="fchip ${filter===k?"on":""}" data-f="${k}">${l}</button>`).join("")
+    + `</div>
+     <div class="rowlab nt"><span>Vue</span><i></i></div>
+     <div class="rowbox nt" style="border:none;padding-left:10px">
+       <span class="vseg">`
+    + VUES.map(([k,ic,l]) =>
+        `<button data-vue="${k}" class="${vueCourante===k?"on":""}">${ic} ${l}</button>`).join("")
+    + `</span></div>`;
+  $$("[data-f]").forEach(b => b.onclick = () => {
+    filter = (filter === b.dataset.f) ? "all" : b.dataset.f;   // second tap = Tous
+    openId = null; render();
+  });
+  $$("#filters [data-vue]").forEach(b => b.onclick = () => {
+    const v = b.dataset.vue;
+    S.boardListe   = (v === "liste");
+    S.compactBoard = (v === "compact");
+    save(); render();
+    toast(v === "liste"
+            ? (listeTri() === "alpha" ? "Liste — ordre alphabétique" : "Liste — ordre de passage")
+        : v === "compact" ? "Cartes compactes — seules les alertes sont visibles"
+        : "Cartes détaillées");
+  });
+
+  const list = items.filter(it => filter==="all" || statusOf(it.p, slot, it.rang)===filter);
+  /* `cardOf` reçoit une OCCURRENCE { p, rang, cle, multi }, plus un
+     patient : c'est elle qui porte le rang, et deux cartes du même
+     dossier doivent pouvoir afficher deux états différents. */
+  const cardOf = (it, sl) => {
+    const p = it.p || it;                       // tolère un patient nu
+    const _rang = it.rang || 1, _multi = !!it.multi;
+    /* ⚠️ `sl` est le créneau de la SECTION en vue Journée, et le créneau
+       courant partout ailleurs : sans lui, les cartes du soir liraient
+       le statut de la journée entière. */
+    const s = statusOf(p, sl === undefined ? slot : sl, _rang);
+    const lv = lastVisit(p);
+    const c = lv ? lv.consts : null;
+    const al = alertes(c, p.thresholds, lv && lv.sourdine);
+    /* La carte est le seul endroit où l'on peut agir sur une vigilance. */
+    p._muteCourant = (lv && lv.sourdine) || {};
+    p._muteCliquable = !!lv;
+    /* ⚠️ `openId` porte une CLÉ D'OCCURRENCE, pas un identifiant de
+       patient : sans ça, toucher le 2ᵉ passage dépliait les deux cartes
+       du même dossier d'un coup. Tout ce qui le relit passe par
+       `occPatientId()`. */
+    const _cle = it.cle || p.id;
+    const open = _cle === openId;
+    const raps = rapOf(p.id);
+    const _tel = (p.tel||{}).mobile || (p.tel||{}).fixe
+       || medecinsDe(p).some(m=>m.tel) || entourageDe(p).some(e=>e.tel)
+       || Object.values(p.contacts||{}).some(c=>c&&c.tel);
+    const _act = (S.cardStyle === "bande" && !open && (_tel || adresseComplete(p)))
+      ? `<div class="pc-act">${_tel ? `<button class="pc-ic" data-cann="${p.id}" title="Appeler">📞</button>` : ""}${
+          adresseComplete(p) ? `<button class="pc-ic" data-cgps="${p.id}" title="Itinéraire">📍</button>` : ""}</div>` : "";
+    return `<div class="pcard st-${s} ${_multi?"sup-"+_rang:""} ${s==="alert"?"warn":""} ${s==="absent"?"absent":""} ${s==="novisit"?"novisit":""} ${s==="done"&&!open?"seen":""} ${open?"open":""}" data-id="${_cle}">
+      <span class="st ${s==="absent"?"todo":s}"></span>
+      <button style="text-align:left" data-toggle="${_cle}">
+        <div class="nm">${esc(p.prenom)} ${esc(p.nom.replace("Demo-","").toUpperCase())}${
+          _multi ? ` <span class="px${_rang>1?"":" un"}">${_rang>1?"2ᵉ":"1ᵉʳ"} passage</span>` : ""}${carteMontre("age", p) ? ` <span class="age">${ageOf(p.dob)??"—"} ans</span>` : ""}${
+          /* ⚠️ fmtFR abrège : sur une date de naissance on l'écrit en
+             clair, comme partout ailleurs dans l'app. */
+          carteMontre("dob", p) && p.dob
+            ? ` <span class="age dob">${p.dob.split("-").reverse().join("/")}</span>` : ""}</div>
+        <div class="vitals">${vitalsHtml(c, al, p.thresholds, p)}</div>
+        <div class="badges" style="margin-top:5px">
+          ${s==="absent" ? `<span class="mini amber">🚪 absent</span>` : ""}
+          ${s==="novisit" ? `<span class="mini grey">🚫 pas de passage prévu</span>` : ""}
+          ${(S.drafts||{})[p.id] ? `<button class="mini accent" data-draft="${p.id}" style="border:none;font:inherit;cursor:pointer">💾 saisie gardée${
+  (S.drafts[p.id].at ? " le " + fmtFR(new Date(S.drafts[p.id].at).toISOString().slice(0,10)) : "")} ▾</button>` : ""}
+          ${S.curTour==="all" && (p.tours||[]).length ? `<span class="mini">🗺 ${esc(p.tours.join(" · "))}</span>` : ""}
+          ${carteMontre("badges", p) && p.docs.length ? `<span class="mini blue">📎 ${p.docs.length}</span>` : ""}
+          ${carteMontre("badges", p) && bilansPending(p).length ? `<span class="mini blue">🧪 ${bilansPending(p).length}</span>` : ""}
+          ${carteMontre("badges", p) && raps.length ? `<span class="mini amber">📌 ${raps.length}</span>` : ""}
+          ${(() => {
+            const t = (carteMontre("tags", p) && typeof annivTexte === "function") ? annivTexte(p) : "";
+            return t ? `<span class="mini anniv">🎂 ${esc(t)}</span>` : "";
+          })()}
+          ${(() => {
+            const n = (typeof alerteSelles === "function") ? alerteSelles(p) : 0;
+            return n ? `<span class="mini amber" style="font-weight:700">💩 ${n} j sans selle</span>` : "";
+          })()}
+          ${(p.tags||[]).map(t=>{
+            const T = tagDef(t); if (!T) return "";
+            if (!carteMontre("tags", p) && t !== "prioritaire") return "";   // prioritaire : toujours visible
+            if (T.perso && T.carte === false) return "";                   // étiquette perso masquée sur la carte
+            const age = T.kind === "evt" ? tagAge(p, t) : null;
+            const vieux = age !== null && age >= 3 ? ";opacity:.55" : "";
+            if (T.perso) return `<span class="mini tagp" style="--tc:${esc(T.col)}${vieux}">${T.ic} ${esc(T.lbl)}</span>`;
+            return `<span class="mini ${t==="prioritaire"?"amber":"blue"}" style="${t==="prioritaire"?"font-weight:700":""}${vieux}">${T.ic} ${esc(T.lbl)}</span>`;
+          }).join("")}
+        </div>
+        <div class="lastseen" ${carteMontre("dernier", p) ? "" : 'style="display:none"'}>${(() => {
+          /* Même règle que dans le listing : une carte de 2ᵉ passage lit
+             SON passage, pas le dernier du dossier. */
+          if (_multi){
+            const vr = visiteDuRang(p, sl === undefined ? slot : sl, _rang);
+            return vr ? (isToday()?"vu aujourd'hui à ":"vu ce jour-là à ")+esc(vr.at)
+                      : "à faire — " + (_rang > 1 ? "2ᵉ" : "1ᵉʳ") + " passage";
+          }
+          return lv ? (lv.date===workDate() ? (isToday()?"vu aujourd'hui à ":"vu ce jour-là à ")+esc(lv.at) : "dernier passage : "+esc(fmtFR(lv.date))+" "+esc(lv.at)) : "jamais vu";
+        })()}</div>
+      </button>
+      ${_act}
+      ${open ? inlineForm(p) : ""}
+    </div>`;
+  };
+
+  /* ⚠️ UNE SEULE FABRIQUE DE LIGNE, partagée par la vue Liste et par les
+     sections de la vue Journée. C'est ce partage qui répare le défaut :
+     en Journée, la branche des sections passait avant et ne consultait
+     jamais `S.boardListe` — le bandeau annonçait « Listing » et l'écran
+     continuait d'afficher des cartes. Deux fabriques auraient fini par
+     diverger ; une seule ne le peut pas. */
+  const ligneDe = (it, i, alpha, sl) => {
+      const p = it.p || it;
+      const _rang = it.rang || 1, _multi = !!it.multi, _cle = it.cle || p.id;
+      const st = statusOf(p, sl, _rang);
+      const nom = (p.nom || "").replace("Demo-", "").toUpperCase();
+      const lv = lastVisit(p);
+      const cst = lv ? lv.consts : null;
+      const al = alertes(cst, p.thresholds);
+      /* ⚠️ `vitalsHtml` est CELLE DES CARTES, avec le dossier en
+         paramètre : le listing suit donc le même réglage
+         🎨 Personnaliser → 🪪 Cartes patient, y compris l'exception
+         propre à un dossier. Deux réglages pour deux écrans qui
+         montrent la même chose, c'était un réglage de trop. */
+      const vit = vitalsHtml(cst, al, p.thresholds, p);
+      const raps = rapOf(p.id);
+      const _tel = (p.tel||{}).mobile || (p.tel||{}).fixe
+        || medecinsDe(p).some(m => m.tel) || entourageDe(p).some(e => e.tel)
+        || Object.values(p.contacts||{}).some(c => c && c.tel);
+
+      /* La deuxième ligne, sous le nom : les constantes du dernier
+         passage, ou à défaut la date de ce passage. Jamais les deux :
+         c'est la place d'UNE information, pas d'un résumé. */
+      /* ⚠️ UNE LIGNE À DEUX PASSAGES PARLE DE SON RANG, PAS DU DOSSIER.
+         `lastVisit` rend le passage le plus récent : sur le rang 1 d'un
+         patient vu deux fois, elle affichait l'heure du SECOND, et sur
+         le rang 2 pas encore fait, l'heure du PREMIER — « vu aujourd'hui
+         à 07:20 » sur un passage qui reste à faire. Chaque rang lit donc
+         le sien. */
+      const _vr = _multi ? visiteDuRang(p, sl, _rang) : null;
+      const sous = _multi
+        ? (_vr ? ((isToday() ? "vu aujourd'hui à " : "vu ce jour-là à ") + esc(_vr.at))
+               /* La pastille de droite dit déjà « 2ᵉ passage » : le
+                  répéter ici mangeait la ligne pour rien. */
+               : "à faire")
+        : (vit ? vit
+        : (carteMontre("dernier", p) && lv
+            ? (lv.date === workDate()
+                ? (isToday() ? "vu aujourd'hui à " : "vu ce jour-là à ") + esc(lv.at)
+                : "dernier passage : " + esc(fmtFR(lv.date)) + " " + esc(lv.at))
+            : ""));
+
+      /* ⚠️ UNE SEULE LIGNE À DROITE — il l'a demandé explicitement. Donc
+         des pastilles courtes, des compteurs plutôt que des mots, et les
+         étiquettes réduites à leur icône (le libellé reste en infobulle).
+         L'ordre est un ordre de PRIORITÉ : si la place manque sur un
+         téléphone étroit, c'est la fin de la ligne qui se coupe, et la
+         vigilance est au début. */
+      const inf = [];
+      /* ⚠️ La marque du rang passe AVANT tout le reste : c'est elle qui
+         dit pourquoi le même nom revient dix lignes plus bas. */
+      if (_multi) inf.push(`<span class="px${_rang>1?"":" un"}">${_rang>1?"2ᵉ":"1ᵉʳ"} passage</span>`);
+      if (st === "alert")   inf.push(`<span class="pl-m d">vigilance</span>`);
+      if (st === "absent")  inf.push(`<span class="pl-m">🚪 absent</span>`);
+      if (st === "novisit") inf.push(`<span class="pl-m">🚫</span>`);
+      if (st === "done")    inf.push(`<span class="pl-m k">✓ vu</span>`);
+      if (carteMontre("badges", p)){
+        if (p.docs.length)          inf.push(`<span class="pl-m b" title="Documents joints">📎 ${p.docs.length}</span>`);
+        if (bilansPending(p).length) inf.push(`<span class="pl-m b" title="Bilans en attente">🧪 ${bilansPending(p).length}</span>`);
+        if (raps.length)            inf.push(`<span class="pl-m a" title="Rappels">📌 ${raps.length}</span>`);
+      }
+      (p.tags || []).forEach(t => {
+        const T = tagDef(t); if (!T) return;
+        if (!carteMontre("tags", p) && t !== "prioritaire") return;   // prioritaire : toujours visible
+        if (T.perso && T.carte === false) return;
+        inf.push(`<span class="pl-m ${t === "prioritaire" ? "a" : "b"}" title="${esc(T.lbl)}">${T.ic}</span>`);
+      });
+      /* ⚠️ QUATRE PASTILLES AU MAXIMUM, et un « +n » pour le reste.
+         Sans cette borne, un dossier chargé (vigilance + pièces jointes
+         + bilans + rappels + étiquettes) débordait de la ligne et la
+         DERNIÈRE PASTILLE SE COUPAIT EN DEUX — vu à la capture d'écran,
+         pas en relisant le code. Une ligne est large de 412 px sur un
+         téléphone : ce qui n'y tient pas doit être compté, pas rogné. */
+      const INF_MAX = 3;
+      const reste = inf.length - INF_MAX;
+      const infs = reste > 0
+        ? inf.slice(0, INF_MAX).concat(`<span class="pl-m" title="${reste} information${reste>1?"s":""} de plus — ouvre la carte">+${reste}</span>`)
+        : inf;
+
+      return `<div class="pl-i st-${st} ${_multi?"sup":""} ${_cle===openId?"on":""}">
+        <button class="pl-main" data-pli="${_cle}">
+          ${alpha ? "" : `<span class="pl-rg">${i+1}</span>`}
+          <span class="pl-n">
+            <!-- ⚠️ L'ÂGE CÈDE SA PLACE DÈS QUE LA DROITE SE CHARGE. Sur
+                 un dossier en vigilance avec pièces jointes et rappels,
+                 c'est lui qui poussait le NOM à se couper en « ROUX
+                 Hen… » : d'un patient on reconnaît le nom, pas l'âge. -->
+            <span class="pl-nm"><b>${esc(nom)}</b> ${esc(p.prenom||"")}${
+              carteMontre("age", p) && inf.length < 3 ? ` <em>${ageOf(p.dob) ?? "—"} ans</em>` : ""}</span>
+            ${sous ? `<span class="pl-sb">${sous}</span>` : ""}
+          </span>
+          <span class="pl-r">${infs.join("")}</span>
+        </button>
+        <!-- ⚠️ 📞 et 📍 HORS du bouton principal : un bouton dans un
+             bouton n'est pas du HTML valide, et sur Android le toucher
+             partait au mauvais des deux. Même découpage que les cartes
+             en mode Bande. -->
+        ${(_tel || adresseComplete(p)) ? `<span class="pl-act">${
+          _tel ? `<button class="pl-ic" data-cann="${p.id}" title="Appeler">📞</button>` : ""}${
+          adresseComplete(p) ? `<button class="pl-ic" data-cgps="${p.id}" title="Itinéraire">📍</button>` : ""}</span>` : ""}
+      </div>`;
+    };
+
+  /* Les lignes d'une liste, séparateurs de lettres compris.
+     ⚠️ LES SÉPARATEURS NE SORTENT QU'EN ALPHABÉTIQUE : en ordre de
+     passage ils ne veulent rien dire et rallongent le défilé. */
+  const listeDe = (arr, alpha, sl) => {
+    let lettre = "";
+    return arr.map((it, i) => {
+      const nom = ((it.p || it).nom || "").replace("Demo-", "").toUpperCase();
+      const L = (nom[0] || "·").toUpperCase();
+      const sep = (alpha && L !== lettre) ? (lettre = L, `<div class="pl-sep">${esc(L)}</div>`) : "";
+      return sep + ligneDe(it, i, alpha, sl);
+    }).join("");
+  };
+
+  const vide = S.curTour === "none"
+    ? `<div style="grid-column:1/-1">${uiEmpty("🚫","Affichage vidé",
+        "Choisis une tournée ci-dessus pour revoir tes patients.")}</div>`
+    : `<p class="muted" style="grid-column:1/-1;text-align:center;padding:30px 0">${
+    !S.patients.length ? "Aucun patient — crée le premier avec ＋"
+    : !activeP().length ? "Tous les dossiers sont mis de côté (🦗 → Mes patients)."
+    : S.curTour!=="all" && !activeP().filter(inTour).length ? "Aucun patient dans la tournée « "+esc(S.curTour)+" » — assigne-les depuis leur fiche."
+    : "Rien dans ce filtre."}</p>`;
+
+  /* Vue JOURNÉE : sections repliables par créneau, avec compteurs.
+     Un patient présent matin ET soir figure dans les deux sections. */
+  if (slot === "jour" && S.curTour !== "all"){
+    S.slotFold = S.slotFold || {};
+    const sections = ["matin","soir"].map(sl => {
+      /* ⚠️ ON REPART DES PATIENTS, pas des occurrences de la vue Journée :
+         un passage supplémentaire appartient à UN créneau, et c'est ici
+         qu'il se dédouble. Le filtre (À voir / Vus / Vigilance) se
+         rejoue donc au niveau de la section, avec SON créneau — sinon
+         un patient vu le matin disparaissait du filtre « à voir » du
+         soir, le défaut même qu'on répare. */
+      const pats = pool.filter(p => slotsOf(p, S.curTour).includes(sl));
+      const sub = occurrencesTriees(pats, S.curTour, sl)
+        .filter(it => filter === "all" || statusOf(it.p, sl, it.rang) === filter);
+      if (!sub.length) return "";
+      const sts = sub.map(it => statusOf(it.p, sl, it.rang));
+      const nDone = sts.filter(x => x === "done").length;
+      const nTodo = sts.filter(x => x === "todo" || x === "alert").length;
+      const L = SLOT_LBL[sl] || { ic:"", lbl:sl };
+      const fold = !!S.slotFold[sl];
+      return `<div class="slotsec ${sl}">
+        <button class="slotsec-h" data-fold="${sl}">
+          <span class="ss-ic">${L.ic}</span>
+          <span class="ss-l">${esc(L.lbl.toUpperCase())}</span>
+          <span class="ss-n">${nDone ? nDone + " vu" + (nDone>1?"s":"") : ""}${nDone&&nTodo?" · ":""}${nTodo ? nTodo + " à voir" : ""}${!nDone&&!nTodo?sub.length+" passage"+(sub.length>1?"s":""):""}</span>
+          <span class="ss-c">${fold ? "▸" : "▾"}</span>
+        </button>
+        ${fold ? "" : (S.boardListe
+          /* ⚠️ LA VUE LISTE VIT AUSSI EN JOURNÉE (J1). Les sections sont
+             tout l'intérêt de cette vue — compteurs et repli — et la
+             liste n'est qu'une façon de DESSINER leur contenu, pas de
+             le trier. Avant, cette branche ignorait `S.boardListe` : le
+             bandeau annonçait « Listing » et rien ne changeait. */
+          ? `<div class="slotsec-b liste"><div class="plist">${listeDe(sub, false, sl)}</div></div>`
+          : `<div class="slotsec-b">${sub.map(it => cardOf(it, sl)).join("")}</div>`)}
+      </div>`;
+    }).join("");
+    $("#board").innerHTML = sections || vide;
+    $("#board").classList.add("byslot");
+    $("#board").classList.remove("listing");
+    $$("#board [data-fold]").forEach(b => b.onclick = () => {
+      S.slotFold[b.dataset.fold] = !S.slotFold[b.dataset.fold];
+      save(); render();
+    });
+  } else if (S.boardListe){
+    /* ══ LE LISTING ══ (refondu en v1.11.0)
+       Ce qu'il voulait : « une ligne avec le nom du patient et les
+       diverses informations principales sur le côté droit. À la ligne du
+       dessous, l'autre patient. »
+
+       ⚠️ ORDRE DE PASSAGE PAR DÉFAUT. La première version de cet écran
+       triait par ordre alphabétique : elle servait à RETROUVER quelqu'un,
+       pas à FAIRE la tournée. Les deux usages existent, et le tri est
+       devenu un réglage — mais le défaut est celui du travail.
+
+       ⚠️ LES SÉPARATEURS DE LETTRES NE SORTENT QU'EN ALPHABÉTIQUE. En
+       ordre de passage ils ne veulent rien dire, et ils rallongeaient le
+       défilé d'une ligne tous les deux patients : c'est précisément ce
+       qu'il reprochait à la version précédente.
+
+       ⚠️ ON GARDE LA PASTILLE DE STATUT ET LE REPÈRE DE VIGILANCE : un
+       réglage d'affichage ne doit jamais cacher une alerte. */
+    const alpha = listeTri() === "alpha";
+    /* ⚠️ On trie des OCCURRENCES : le nom se lit sur `it.p`. À nom égal,
+       le rang départage, pour que le 2ᵉ passage suive le premier au
+       lieu de se poser avant lui au hasard du tri. */
+    const tri = alpha
+      ? list.slice().sort((a, b) =>
+          (a.p.nom || "").localeCompare(b.p.nom || "", "fr", { sensitivity:"base" })
+          || (a.p.prenom || "").localeCompare(b.p.prenom || "", "fr", { sensitivity:"base" })
+          || (a.rang - b.rang))
+      /* `list` arrive DÉJÀ dans l'ordre de passage — c'est elle que les
+         cartes dessinent. On ne retrie pas, on ne recalcule pas. */
+      : list;
+    const lignes = listeDe(tri, alpha, slot);
+
+    /* ⚠️ `#board` est une GRILLE À DEUX COLONNES (c'est elle qui range
+       les cartes). Sans en sortir, le listing se retrouvait écrasé dans
+       une demi-largeur, le nom coupé à « M… » et le sélecteur de tri
+       rejeté dans la case d'à côté. Vu à la capture, pas à la lecture.
+       Même sortie que les sections par créneau, juste au-dessus. */
+    $("#board").classList.remove("byslot");
+    $("#board").classList.add("listing");
+    $("#board").innerHTML = lignes ? `<div class="pltri">
+        <button class="chip sm ${alpha?"":"on"}" data-pltri="ordre">↕ Ordre de passage</button>
+        <button class="chip sm ${alpha?"on":""}" data-pltri="alpha">A→Z</button>
+      </div><div class="plist">${lignes}</div>` : vide;
+
+    $$("#board [data-pltri]").forEach(b => b.onclick = () => {
+      S.listeTri = b.dataset.pltri; save(); render();
+    });
+    /* Toucher un nom rouvre sa carte : on revient aux cartes sur ce
+       patient-là, plutôt que d'ouvrir un écran de plus. */
+    $$("#board [data-pli]").forEach(b => b.onclick = () => {
+      openId = b.dataset.pli; S.boardListe = false; save(); render();
+      const c = document.querySelector(`.pcard[data-id="${openId}"]`);
+      if (c) c.scrollIntoView({ block:"center", behavior:"smooth" });
+    });
+  } else {
+    $("#board").classList.remove("byslot");
+    $("#board").classList.remove("listing");
+    $("#board").innerHTML = list.map(it => cardOf(it, slot)).join("") || vide;
+  }
+
+  { const pv = $("#d-prev"); if (pv) pv.onclick = () => { shiftWorkDate(-1); openId=null; render(); };
+    const nx = $("#d-next"); if (nx) nx.onclick = () => { if (!isToday()){ shiftWorkDate(1); openId=null; render(); } }; }
+
+  /* L'étiquette « saisie gardée » ouvre son détail, sans déplier la carte */
+  $$("[data-draft]").forEach(b => b.onclick = e => {
+    e.stopPropagation(); sheetBrouillon(b.dataset.draft);
+  });
+  /* Actions rapides des cartes à bande latérale (v1.0.58) */
+  $$("[data-cann]").forEach(b => b.onclick = e => { e.stopPropagation(); const pp = getP(b.dataset.cann); if (pp) sheetAnnuaire(pp); });
+  $$("[data-cgps]").forEach(b => b.onclick = e => { e.stopPropagation(); const pp = getP(b.dataset.cgps);
+    if (pp) window.open(`geo:0,0?q=${encodeURIComponent(adresseComplete(pp)||pp.address||"")}`, "_system"); });
+  try { renderLegende(); } catch(e){ console.error("legende:", e); }
+  /* ⚠️ Une valeur en vigilance s'appuie pour la mettre en sourdine.
+     `stopPropagation` est indispensable : sans lui, l'appui traverse
+     jusqu'au `[data-toggle]` de la carte, qui se déplie ou se replie
+     en même temps que la feuille s'ouvre. */
+  $$("[data-mute]").forEach(b => b.onclick = e => {
+    e.stopPropagation(); e.preventDefault();
+    const [pid, k] = String(b.dataset.mute).split("|");
+    if (typeof sheetSourdine === "function") sheetSourdine(pid, k);
+  });
+  $$("[data-toggle]").forEach(b => b.onclick = () => {
+    openId = openId === b.dataset.toggle ? null : b.dataset.toggle;
+    render();
+    if (openId){ const el=document.querySelector(`.pcard[data-id="${openId}"]`); el&&el.scrollIntoView&&el.scrollIntoView({behavior:"smooth",block:"start"}); }
+  });
+  if (openId){
+    /* ⚠️ `openId` peut porter une CLÉ D'OCCURRENCE (« p1#2 ») depuis le
+       passage supplémentaire : on redescend au dossier pour tout ce qui
+       suit. Un `getP("p1#2")` rendait `undefined` et la carte dépliée
+       restait vide. */
+    const p = getP(occPatientId(openId));
+    // La carte ouverte de la liste, jamais le formulaire du déroulé
+    const carte = document.querySelector(".pcard.open");
+    if (p) bindInline(p, carte);
+  }
+}
+
+/* ---------- Saisie inline + outils patient ---------- */
+function inlineForm(p){
+  const raps = rapOf(p.id);
+  const _lc = (lastVisit(p)||{}).consts || {};
+  const _ta = String(_lc.ta||"").split("/");
+  const gh = (v,def) => v ? String(v) : def;
+  return `<div class="inline" data-form="${p.id}">
+    <div class="toolrow" style="flex-wrap:wrap">
+      <button class="tool" data-docs="${p.id}" style="flex:1 1 30%">📎 Docs${p.docs.length?" ("+p.docs.length+")":""}</button>
+      <button class="tool" data-bilans="${p.id}" style="flex:1 1 30%">🧪 Bilans${bilansPending(p).length?" ("+bilansPending(p).length+")":""}</button>
+      <button class="tool" data-raps="${p.id}" style="flex:1 1 30%">📌 Rappels${raps.length?" ("+raps.length+")":""}</button>
+      <button class="tool" data-clone="${p.id}" style="flex:1 1 30%">🔁 J-1</button>
+      <button class="tool" data-hist="${p.id}" style="flex:1 1 30%">🕐 Historique</button>
+      <button class="tool" data-graph="${p.id}" style="flex:1 1 30%">📈 Courbes</button>
+      ${adresseComplete(p) ? `<button class="tool" data-gps="${p.id}" style="flex:1 1 30%" title="${esc(adresseComplete(p))}">🗺️ GPS</button>` : ""}
+      ${((p.tel||{}).mobile || (p.tel||{}).fixe
+       || medecinsDe(p).some(m=>m.nom||m.tel) || entourageDe(p).some(e=>e.nom||e.tel)
+       || Object.values(p.contacts||{}).some(c=>c&&(c.nom||c.tel)))
+     ? `<button class="tool" data-annuaire="${p.id}" style="flex:1 1 30%">📞 Appels</button>` : ""}
+      <button class="tool" data-edit="${p.id}" style="flex:1 1 30%">✏️ Fiche</button>
+    </div>
+    ${S.constStyle === "tableau" ? vitalTilesHtml(p) : ""}
+    ${shownInfos(p).map(it => { const T=infoLabel(it);
+      return `<div class="small" style="background:rgba(127,127,127,.07);border-left:3px solid ${T.col};border-radius:0 10px 10px 0;padding:7px 11px;margin-bottom:5px">${T.ic} ${it.type==="autre"?"<b>"+esc(T.lbl)+"</b> ":""}${esc(it.txt).replace(/\n/g,"<br>")}</div>`;
+    }).join("")}
+    <div class="rowlab am"><span>Ce passage</span><i></i></div>
+    <div class="rowbox am" style="display:block;margin-bottom:12px">
+    ${slotsOn() ? `<div class="chips" data-slotrow style="margin:0 0 6px">
+      <button class="chip ${(_curSlot||defaultSlot())==="matin"?"on":""}" data-slot="matin" style="flex:1;justify-content:center">☀️ Matin</button>
+      <button class="chip ${(_curSlot||defaultSlot())==="soir"?"on":""}" data-slot="soir" style="flex:1;justify-content:center">🌙 Soir</button>
+    </div>
+    <p class="small muted" data-slothint style="margin:0 0 8px">Ce que tu coches est attribué au passage sélectionné.</p>` : ""}
+    <div class="chips" data-tagrow style="margin-top:2px">
+      ${Object.entries(tousLesTags()).map(([k,t])=>{
+        const on  = (p.tags||[]).includes(k);
+        const m   = (p.tagMeta||{})[k] || {};
+        const age = on && t.kind === "evt" ? tagAge(p, k) : null;
+        // Une pastille événementielle s'atténue avec l'âge : rien ne se perd,
+        // mais l'œil distingue ce qui est frais de ce qui traîne.
+        const vieux = age !== null && age >= 3 ? " old" : "";
+        return `<button class="chip ${on?"on":""}${vieux}${t.perso?" tagp":""}" data-tag="${k}" style="font-size:12px${t.perso?";--tc:"+esc(t.col):""}">${t.ic} ${esc(t.lbl)}${
+          age !== null ? ` <span class="tg-age">${esc(tagAgeLbl(age))}</span>` : ""}${
+          on && m.note ? ' <span class="tg-note">💬</span>' : ""}</button>`;
+      }).join("")}
+      ${(p.tags||[]).filter(k => ((p.tagMeta||{})[k]||{}).note).map(k => {
+        const t = tagDef(k) || { ic:"🏷️", lbl:k }, m = p.tagMeta[k];
+        return `<div class="tgcom" style="--tc:${k==="prioritaire"?"var(--danger)":k==="medecin"?"var(--accent)":"var(--amber)"}">
+          <div class="tgc-h">${t.ic} ${esc(t.lbl)}</div>
+          <div class="tgc-t">${esc(m.note)}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    </div>
+
+    <div class="rowlab ac"><span>Soins réalisés</span><i></i><em>★ = plan de soins</em></div>
+    <div class="rowbox ac" style="display:block;margin-bottom:12px">
+      <div class="small muted" style="margin-bottom:7px">💡 Appui long sur un soin (ou tape ✏️) pour un commentaire du jour</div>
+      <div class="chips" data-chips="1">
+        ${planFor(p, slotsOn() ? (_curSlot || activeSlot() || defaultSlot()) : null).map(x=>{
+          const r = (p.planRythme||{})[x];
+          // L'étoile porte le créneau : ambre matin, bleu soir, neutre les deux
+          const sl = (p.planSlots||{})[x] || {};
+          const cls = (sl.matin && !sl.soir) ? " s-am" : (sl.soir && !sl.matin) ? " s-bl" : "";
+          return `<button class="chip star${cls}" data-s="${esc(x)}">${esc(x)}${r?` <span class="rythme">${esc(r)}</span>`:""}${getSoinProtocol(x)?" 📋":""}</button>`;
+        }).join("")}
+        <button class="chip add" data-addsoin="1">＋ autre…</button>
+      ${slotsOn() && Object.keys(p.planSlots||{}).length ? `<div class="slotleg">
+        <span class="l-am"><b>★</b> matin</span>
+        <span class="l-bl"><b>★</b> soir</span>
+        <span><b>★</b> les deux</span></div>` : ""}
+      </div>
+      <div style="margin-top:4px"><input class="plan-search" id="soin-srch-${p.id}" placeholder="🔍 Chercher un soin…" style="font-size:13px"></div>
+      <div id="soin-srch-res-${p.id}" class="chips" style="min-height:0;margin-top:4px"></div>
+    </div>
+    <div>
+    </div>
+
+    <div class="rowlab bl"><span>Constantes</span><i></i><em>si mesurées</em></div>
+    <div class="rowbox bl" style="display:block;margin-bottom:12px">
+      <div class="cgrid">
+        <div data-ck="ta" style="${cstStyle("ta", p)}"><label>TA</label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input data-ta-s inputmode="numeric" placeholder="${esc(gh(_ta[0],"13"))}" title="cm Hg (13) ou mm Hg (130)" style="width:44px;text-align:center" maxlength="3">
+            <span style="font-size:18px;color:var(--dim)">/</span>
+            <input data-ta-d inputmode="numeric" placeholder="${esc(gh(_ta[1],"8"))}" style="width:36px;text-align:center" maxlength="2">
+          </div>
+          <input data-c="ta" type="hidden">
+          <div data-tahint class="ta-hint"></div>
+        </div>
+        <div data-ck="temp" style="${cstStyle("temp", p)}"><label>T° °C</label><input data-c="temp" inputmode="decimal" placeholder="${esc(gh(_lc.temp,"36.8"))}"></div>
+        <div data-ck="sat" style="${cstStyle("sat", p)}"><label>Sat %</label><input data-c="sat" inputmode="numeric" placeholder="${esc(gh(_lc.sat,"97"))}"></div>
+        <div data-ck="puls" style="${cstStyle("puls", p)}"><label>Pouls</label><input data-c="puls" inputmode="numeric" placeholder="${esc(gh(_lc.puls,"72"))}"></div>
+        <div data-ck="glyc" style="${cstStyle("glyc", p)}"><label>Gly g/L</label><input data-c="glyc" inputmode="decimal" placeholder="${esc(gh(_lc.glyc,"1.10"))}"></div>
+        <div data-ck="douleur" style="${cstStyle("douleur", p)}"><label>EVA /10</label><input data-c="douleur" inputmode="numeric" placeholder="${esc(gh(_lc.douleur,"0"))}"></div>
+      </div>
+      <div class="selrow">
+        <label>Selles</label>
+        <div class="selbtns">
+          ${SELLES_VAL.map(v => `<button type="button" class="selb${
+            v.k==="diarrhee" ? " dia" : ""}" data-sel="${v.k}">${v.lbl}</button>`).join("")}
+        </div>
+      </div>
+      <p class="alertline" data-al="1" style="margin-top:8px"></p>
+      <div class="chips" style="margin-top:4px">
+        <button class="chip" data-constrel style="font-size:12px">📤 Inclure dans la relève</button>
+      </div>
+      <p class="small muted" style="margin-top:3px">Les constantes sont toujours enregistrées dans l'historique du patient. Coche pour qu'elles figurent aussi dans la relève.</p>
+    </div>
+    <div>
+    </div>
+
+    ${(() => {
+      /* Le suivi de plaie vit ICI, entre constantes et transmission :
+         pas dans ⚡ Actions. Minimaliste quand il n'y a rien — une
+         seule ligne — pour ne pas allonger toutes les cartes. */
+      const pls = (typeof plaiesOuvertes === "function") ? plaiesOuvertes(p) : [];
+      /* ⚠️ Sans plaie, seul un bouton en pointillés flottait entre
+         Constantes et Transmission : le bloc n'avait pas l'allure des
+         autres. Le bandeau est désormais toujours là. */
+      if (!pls.length) return `
+      <div class="rowlab am"><span>🩹 Plaies</span><i></i><em>aucune</em></div>
+      <div class="rowbox am" style="display:block;margin-bottom:12px">
+        <button class="plnone" data-plnew="${p.id}">🩹 Déclarer une plaie</button>
+      </div>`;
+      return `
+      <div class="rowlab am"><span>🩹 Plaies</span><i></i>
+        <em>${pls.length} en cours · touche pour le suivi</em></div>
+      <div class="rowbox am" style="display:block;margin-bottom:12px">
+        ${pls.map(pl => {
+          const j = plaieJours(pl);
+          const ph = plaiePhotos(p, pl);
+          const der = ph.slice(-1)[0];
+          /* ⚠️ La ligne ouvrait déjà le suivi, mais RIEN ne le disait :
+             ni chevron, ni libellé. On cherchait un bouton « Suivi » qui
+             n'existait pas à ce niveau, et on croyait la fonction absente.
+             Le nombre de notes et le chevron rendent l'accès évident. */
+          const nf = (typeof plaieFil === "function" ? plaieFil(p, pl).length : 0);
+          return `<div class="plrow" data-plopen="${pl.id}">
+            <span style="flex:1;min-width:0">
+              <div class="plrow-t">${esc(plaieNom(pl))}${j!==null?" — "+j+" j":""}</div>
+              <div class="plrow-s">${pl.stade?"stade "+pl.stade+" · ":""}${
+                der ? "photo le "+fmtFR(der.date) : "aucune photo"}${
+                nf ? " · 🕐 " + nf + " suivi" + (nf > 1 ? "s" : "") : ""}</div>
+            </span>
+            <button aria-label="Prendre une photo" class="plrow-cam" data-plphoto="${pl.id}">📷</button>
+            <span class="plrow-go" aria-hidden="true">›</span>
+          </div>`;
+        }).join("")}
+        <button class="plnone" data-plnew="${p.id}" style="margin-top:6px">＋ Autre plaie</button>
+      </div>`;
+    })()}
+
+    <div class="rowlab vi"><span>Transmission</span><i></i><em>événements rapides</em></div>
+    <div class="rowbox vi" style="display:block;margin-bottom:12px">
+      <div class="chips" id="evt-tags-${p.id}" style="margin-bottom:6px">
+        ${[["🤕","Chute"],["🚫","Refus de soin"],["🚪","Absence"],["⚠️","Matériel manquant"],["💊","Erreur pharmacie"],["🏠","Domicile fermé"]].map(([ic,lbl])=>
+          `<button class="chip" data-evt="${esc(lbl)}" style="font-size:12px">${ic} ${lbl}</button>`).join("")}
+      </div>
+      <div class="chips" style="margin-bottom:6px">
+        <button class="chip" data-phrasepick style="font-size:12px">💬 Phrases types…</button>
+        <button class="chip" data-dard-toggle style="font-size:12px">📋 Mode DARD</button>
+      </div>
+      <div data-dardbox style="display:none;flex-direction:column;gap:6px;margin-bottom:6px">
+        <input data-dard="D" placeholder="Données — constantes, faits observés">
+        <input data-dard="A" placeholder="Actions — soins réalisés, appels">
+        <input data-dard="R" placeholder="Résultats — tolérance, évolution">
+        <input data-dard="V" placeholder="Devenir — à prévoir pour le collègue">
+      </div>
+      <!-- ⚠️ LE MICRO FLOTTANT A DISPARU : il faisait doublon avec celui
+           du clavier, qui dicte mieux, et il occupait la place du vrai
+           bouton d'enregistrement. Pour dicter, on utilise le micro de
+           son clavier comme dans n'importe quel champ de texte. -->
+      <textarea data-note="1" placeholder="Événements, consignes… (dicte avec le micro de ton clavier)"></textarea>
+      <!-- ⚠️ Ici on garde le SON : le ton passe, et un terme médical
+           n'est pas déformé par la transcription. -->
+      <div class="pvoice" data-pvoice="1"></div>
+    </div>
+    <div class="formbtns">
+      <button class="btn btn-ghost" data-cancel="1">Annuler</button>
+      <!-- ⚠️ « 💾 Enregistrer » à côté de « ✓ Valider » se confondait avec lui :
+           une saisie restait en attente sans qu'on sache pourquoi. -->
+      <button class="btn btn-ghost" data-keep="1">💾 Garder pour plus tard</button>
+      <button class="btn btn-primary fb-wide" data-save="1">${_formDraft && _formDraft.pid===p.id && _formDraft._editUid ? "✓ Enregistrer les modifications" : "✓ Valider le passage"}</button>
+    </div>
+    <div data-needhint class="need-hint"></div>
+    <p class="small muted" style="margin-top:6px;text-align:center">💾 garde ta saisie <b>sans valider</b> le passage — la carte affiche « saisie en attente »</p>
+  </div>`;
+}
+
+let _soinNotes = {}; _soinNotesRel = {}; _soinNotesPlaie = {}; // commentaires par soin pour le passage en cours
+let _curSlot = null;  // créneau courant du formulaire ("matin"/"soir") si activé
+function _saveDraft(f, pid){
+  if (!f) return;
+  const soins = [...f.querySelectorAll(".chip.on[data-s]")].map(c=>c.dataset.s);
+  const consts = {};
+  { const sb = f.querySelector(".selb.on"); if (sb) consts.selles = sb.dataset.sel; }
+  f.querySelectorAll("[data-c]").forEach(i=>{ if(i.value.trim()) consts[i.dataset.c]=i.value.trim(); });
+  const taS = f.querySelector("[data-ta-s]")?.value||"";
+  const taD = f.querySelector("[data-ta-d]")?.value||"";
+  const note = f.querySelector("[data-note]")?.value||"";
+  const constRel = !!f.querySelector("[data-constrel].on");
+  const dardOn = !!f._dardOn;
+  /* ⚠️ `_editUid` SURVIT À LA SAISIE. Il était perdu ici : ce brouillon
+     est reconstruit à chaque frappe, et il s'écrivait par-dessus
+     `_formDraft` sans reporter le passage qu'on était en train de
+     corriger. Conséquence mesurée : on ouvrait un passage par ✏️, on
+     corrigeait une valeur — et la correction partait vers la boîte
+     « compléter ou garder deux ? » au lieu de modifier le passage visé.
+     Le lien se perdait AU PREMIER CARACTÈRE TAPÉ, c'est-à-dire toujours.
+
+     ⚠️ C'est aussi ce qui rendait l'ancien défaut capricieux : selon
+     qu'on avait touché le formulaire ou non avant de valider, le même
+     geste écrasait le passage précédent ou en créait un second. Un
+     comportement qui dépend d'une frappe ne se décrit pas, il se subit. */
+  const _edit = (_formDraft && _formDraft.pid === pid) ? _formDraft._editUid : null;
+  _formDraft = { pid, soins, consts, taS, taD, note, soinNotes:{..._soinNotes}, soinNotesRel:{..._soinNotesRel}, soinNotesPlaie:{..._soinNotesPlaie}, constRel, dardOn,
+                 ...(_edit ? { _editUid:_edit } : {}) };
+}
+/* ══ CORRIGER UN PASSAGE DÉJÀ VALIDÉ ══ (v1.16.0)
+   ⚠️ C'EST LA CONTREPARTIE DE LA SUPPRESSION DU RECHARGEMENT AUTOMATIQUE.
+   Ce rechargement posait `_editUid` tout seul, au mauvais moment — d'où
+   les constantes du matin reprises le soir. En le retirant, plus rien ne
+   posait `_editUid` : un passage validé devenait définitif dès qu'un
+   autre le suivait. Ce qui se décidait à l'insu de l'utilisateur se
+   demande désormais explicitement, depuis 🕐 Historique.
+
+   ⚠️ LA DIFFÉRENCE TIENT EN UN MOT : AVANT, L'APP DÉCIDAIT ; MAINTENANT,
+   C'EST LUI. Même mécanisme, même `_editUid` — mais déclenché par un
+   bouton qui dit ce qu'il fait, sur le passage qu'on a choisi, et le
+   bouton de validation annonce alors « Enregistrer les modifications ».
+
+   ⚠️ UNE SAISIE EN COURS NE SE PERD PAS : si le formulaire porte un
+   brouillon pour un AUTRE patient, ou une saisie gardée 💾 pour
+   celui-ci, on prévient avant de l'écraser. */
+function reprendrePassage(pid, uid){
+  const p = getP(pid); if (!p) return false;
+  const v = (p.visits||[]).find(x => x.uid === uid); if (!v) return false;
+  _formDraft = { pid, soins:[...(v.soins||[])], consts:{...(v.consts||{})},
+                 taS:"", taD:"", note:v.note||"",
+                 soinNotes:{...(v.soinNotes||{})},
+                 soinNotesRel:{...(v.soinNotesRel||{})},
+                 soinNotesPlaie:{...(v.soinNotesPlaie||{})},
+                 constRel:!!v.constRel, dardOn:!!v.dar,
+                 _editUid:v.uid };
+  if (v.consts && v.consts.ta){
+    const t = String(v.consts.ta).split("/");
+    _formDraft.taS = t[0]||""; _formDraft.taD = t[1]||"";
+  }
+  /* Le créneau du passage repris, sinon valider le reclasserait selon
+     l'heure qu'il est — un passage du matin corrigé le soir deviendrait
+     un passage du soir. */
+  if (slotsOn() && v.slot) _curSlot = v.slot;
+  openId = p.id;
+  return true;
+}
+
+function _restoreDraft(f, pid){
+  // Reprendre une saisie enregistrée avec 💾 (elle survit à la fermeture de l'app)
+  if ((!_formDraft || _formDraft.pid !== pid) && (S.drafts||{})[pid]){
+    _formDraft = { ...S.drafts[pid], pid };
+  }
+  /* ══ UN PASSAGE PAR PASSAGE ══ (v1.16.0)
+     ⚠️ ICI SE TROUVAIT UN RECHARGEMENT AUTOMATIQUE : « patient déjà vu
+     aujourd'hui → recharger son passage pour le compléter ». L'intention
+     visait un cas réel — la patiente qui demande un soin de plus deux
+     minutes après la validation — mais la condition ne regardait QUE la
+     date. Elle ne distinguait pas « je reviens tout de suite » de « c'est
+     le soir, huit heures plus tard ».
+
+     ⚠️ CE QUE ÇA DONNAIT AU CHEVET, rapporté puis mesuré : « le soir, quand
+     j'ouvre un patient, les constantes du matin sont déjà renseignées » —
+     et le formulaire pointait sur le passage du matin (`_editUid`), si
+     bien que valider le MODIFIAIT au lieu d'en créer un second. Sans
+     créneaux, mesuré : saisie du soir 38,9 au moment de l'appui, base
+     contenant un seul passage à 36,5. La saisie du soir disparaissait.
+
+     ⚠️ LA VUE JOURNÉE SUFFISAIT À DÉCLENCHER LE DÉFAUT même créneaux
+     activés (`sl === "jour"`), et cette vue est posée automatiquement au
+     retour au Moniteur. Ce n'était donc pas un cas de bord.
+
+     ⚠️ RÈGLE RETENUE, à sa demande : ouvrir un patient ouvre TOUJOURS un
+     passage neuf. La question « compléter celui d'avant ou en garder
+     deux ? » reste posée au moment de valider, par la boîte qui existe
+     déjà dans commitVisit — et qui était justement court-circuitée par ce
+     rechargement.
+
+     ⚠️ CE QUE CETTE SUPPRESSION COÛTE, ET QU'IL FAUT RENDRE : `_editUid`
+     n'était posé QUE par ce rechargement. En le retirant, le seul moyen
+     de revenir sur un passage validé devient l'annulation du dernier
+     (`_lastVisitUid`). Un passage plus ancien n'est plus modifiable. La
+     contrepartie — un bouton ✏️ explicite sur l'historique du jour — est
+     due, et tant qu'elle n'est pas là ce commentaire dit la dette plutôt
+     que de la passer sous silence.
+
+     ⚠️ ON NE TOUCHE PAS À LA SAISIE GARDÉE 💾 juste au-dessus : celle-là
+     est une saisie EN COURS que l'utilisateur a explicitement mise de
+     côté, pas un passage validé. La reprendre est ce qu'il attend. */
+  if (!_formDraft || _formDraft.pid !== pid){ _soinNotes = {}; _soinNotesRel = {}; _soinNotesPlaie = {}; return; }
+  const d = _formDraft;
+  _soinNotes = { ...(d.soinNotes||{}) };
+  _soinNotesRel = { ...(d.soinNotesRel||{}) };
+  _soinNotesPlaie = { ...(d.soinNotesPlaie||{}) };
+  // Restaurer les soins
+  d.soins.forEach(sn => {
+    let c = f.querySelector(`.chip[data-s="${CSS.escape(sn)}"]`);
+    if (!c){
+      c = document.createElement("button");
+      c.className="chip on"; c.dataset.s=sn; c.textContent=sn;
+      const addBtn = f.querySelector("[data-addsoin]");
+      if (addBtn) f.querySelector("[data-chips]").insertBefore(c, addBtn);
+      { const _p = getP(pid);   // ⚠️ decorateChip/openSoinComment sont LOCALES à _bindUnForm
+        armerChipSoin(c, _p, f, ch => decorerSoin(ch, _p), ch => ouvrirNoteSoin(ch, _p, f)); }
+    } else { c.classList.add("on"); decorerSoin(c, getP(pid)); }
+  });
+  // Restaurer TA
+  const taS=f.querySelector("[data-ta-s]"), taD=f.querySelector("[data-ta-d]");
+  if (taS&&d.taS) taS.value=d.taS;
+  if (taD&&d.taD) taD.value=d.taD;
+  const taHid=f.querySelector("[data-c='ta']");
+  if (taHid&&d.taS&&d.taD) taHid.value=d.taS+"/"+d.taD;
+  // Restaurer les selles
+  { const v = (d.consts||{}).selles;
+    if (v !== undefined && v !== ""){
+      const b = f.querySelector(`.selb[data-sel="${CSS.escape(String(v))}"]`);
+      if (b) b.classList.add("on");
+    } }
+  // Restaurer autres constantes
+  f.querySelectorAll("[data-c]").forEach(i=>{
+    if(i.dataset.c!=="ta" && d.consts[i.dataset.c]) i.value=d.consts[i.dataset.c];
+  });
+  // Restaurer la note
+  const noteEl=f.querySelector("[data-note]");
+  if(noteEl&&d.note) noteEl.value=d.note;
+}
+
+/* ⚠️ N'ESSAIE PLUS DE DEVINER quel formulaire câbler.
+   Deviner a échoué deux fois : chercher dans tout le document prenait
+   parfois celui du déroulé ; cibler une racine échouait quand la carte
+   n'était pas encore dans le DOM au moment de l'appel.
+   On câble TOUS les formulaires de ce patient. C'est un peu de travail
+   en trop, jamais un bouton muet. */
+/* ⚠️ Version AUTONOME de la décoration d'un soin, utilisable hors de
+   _bindUnForm — où decorateChip est une variable locale inaccessible.
+   C'est ce qui rendait toutes les cartes muettes : _restoreDraft
+   l'appelait et levait « decorateChip is not defined », interrompant
+   tout le câblage qui suivait. */
+function decorerSoin(chip, p){
+  const sn = chip.dataset.s;
+  const on = chip.classList.contains("on");
+  const r  = ((p && p.planRythme) || {})[sn];
+  const base = esc(sn) + (r ? ` <span class="rythme">${esc(r)}</span>` : "")
+             + (getSoinProtocol(sn) ? " 📋" : "");
+  chip.innerHTML = base + (_soinNotes[sn]
+    ? ' <span style="opacity:.9">💬</span>'
+    : (on ? ' <span style="opacity:.55">✏️</span>' : ""));
+}
+
+  function ouvrirNoteSoin(chip, p, f){
+  const sn = chip.dataset.s;
+  if (!chip.classList.contains("on")){ chip.classList.add("on"); decorerSoin(chip, p); _saveDraft(f,p.id); }
+  // Retirer un éventuel éditeur déjà ouvert
+  f.querySelector("[data-scwrap]")?.remove();
+  const wrap = document.createElement("div");
+  wrap.setAttribute("data-scwrap","1");
+  wrap.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--border-strong);border-radius:10px";
+  wrap.style.flexWrap = "wrap";
+  wrap.innerHTML = `<span class="small" style="flex-basis:100%;margin-bottom:2px">💬 Commentaire — ${esc(sn)}</span>
+    <input data-scin placeholder="Ton commentaire du jour…" style="flex:1;min-width:0;font-size:13px" value="${esc(_soinNotes[sn]||"")}">
+    <button class="chip" data-scphrase title="Insérer une phrase type">💬</button>
+    <button aria-label="Valider" class="chip" data-scok>✓</button>
+    <label class="screl" style="flex-basis:100%">
+      <input type="checkbox" data-screl ${_soinNotesRel[sn] ? "checked" : ""}>
+      <span>Faire figurer dans la relève</span>
+    </label>
+    ${(typeof plaiesOuvertes === "function" ? plaiesOuvertes(p) : []).map(pl => `
+    <label class="screl" style="flex-basis:100%">
+      <input type="checkbox" data-scpl="${esc(pl.id)}" ${_soinNotesPlaie[sn] === pl.id ? "checked" : ""}>
+      <span>🩹 Rattacher au suivi de « ${esc(plaieNom(pl))} »</span>
+    </label>`).join("")}`;
+  chip.closest("[data-chips]").after(wrap);
+  const inp = wrap.querySelector("[data-scin]");
+  inp.focus();
+  const persist = () => {
+    const v = inp.value.trim();
+    if (v) _soinNotes[sn] = v; else delete _soinNotes[sn];
+    /* Le choix « dans la relève » est fait à chaque commentaire,
+       sans mémoire : un même soin peut mériter d'être signalé un jour
+       et rester dans l'historique le lendemain. */
+    const box = wrap.querySelector("[data-screl]");
+    if (box && box.checked && v) _soinNotesRel[sn] = true;
+    else delete _soinNotesRel[sn];
+    /* Rattachement à une plaie : le commentaire apparaîtra dans son
+       fil de suivi, tout en restant dans l'historique du passage. */
+    const pb = [...wrap.querySelectorAll("[data-scpl]")].find(x => x.checked);
+    if (pb && v) _soinNotesPlaie[sn] = pb.dataset.scpl;
+    else delete _soinNotesPlaie[sn];
+    decorerSoin(chip, p);
+    _saveDraft(f, p.id);
+  };
+  const done = () => { persist(); wrap.remove(); };
+  wrap.querySelectorAll("[data-scpl]").forEach(b => b.onchange = () => {
+    if (b.checked) wrap.querySelectorAll("[data-scpl]").forEach(x => { if (x !== b) x.checked = false; });
+  });
+  wrap.querySelector("[data-scok]").onclick = done;
+  // Bouton 💬 : ouvrir le catalogue de phrases, insérer dans CE champ de commentaire
+  wrap.querySelector("[data-scphrase]").onclick = () => {
+    persist(); // garder ce qui est déjà tapé
+    sheetPhrasePicker(p.id, (ph) => {
+      _soinNotes[sn] = ((_soinNotes[sn]||"").trim() ? _soinNotes[sn].replace(/\s+$/,"")+" " : "") + ph;
+      decorerSoin(chip, p); _saveDraft(f, p.id);
+      ouvrirNoteSoin(chip, p, f); // rouvrir l'éditeur avec la phrase insérée
+    });
+  };
+  inp.addEventListener("keydown", e => { if (e.key==="Enter") done(); });
+}
+
+function bindInline(p, racine){
+  const tous = [...document.querySelectorAll(`[data-form="${p.id}"]`)];
+  if (!tous.length) return;
+  if (tous.length > 1){ tous.forEach(el => _bindUnForm(p, el)); return; }
+  return _bindUnForm(p, tous[0]);
+}
+
+function _bindUnForm(p, f){
+  if (!f) return;
+  // Restaurer le brouillon si on revient sur ce patient après un sous-écran
+  _restoreDraft(f, p.id);
+  const decorateChip = c => {
+    const sn = c.dataset.s;
+    const on = c.classList.contains("on");
+    // Le rythme du plan de soins doit survivre à la redécoration :
+    // cette fonction réécrit tout le contenu du chip.
+    const r = (p.planRythme||{})[sn];
+    const base = esc(sn) + (r ? ` <span class="rythme">${esc(r)}</span>` : "")
+               + (getSoinProtocol(sn) ? " 📋" : "");
+    // ✏️ visible sur les soins cochés (invite à commenter) · 💬 si un commentaire existe
+    c.innerHTML = base + (_soinNotes[sn] ? ' <span style="opacity:.9">💬</span>' : (on ? ' <span style="opacity:.55">✏️</span>' : ""));
+  };
+  const openSoinComment = (chip) => ouvrirNoteSoin(chip, p, f);
+  const planHint = f.querySelector("[data-planhint]");
+  /* ⚠️ Tout soin créé en cours de saisie DOIT passer par armerChipSoin.
+     Un simple onclick=toggle donne un soin cochable mais sans crayon,
+     sans appui long, sans commentaire possible — c'était le cas des
+     soins repris par J-1. */
+  /* ⚠️ Isolé volontairement : si armerChipSoin échoue sur UN soin, le
+     câblage des outils qui suit (Docs, Bilans, J-1, Fiche…) ne doit pas
+     s'interrompre — sinon TOUS les boutons de la carte deviennent muets. */
+  f.querySelectorAll(".chip[data-s]").forEach(c => {
+    try { armerChipSoin(c, p, f, decorateChip, openSoinComment); }
+    catch(e){ logIncident("carte", "Soin non armé : " + (c.dataset.s||"?"), e); }
+  });
+  /* Filet : si des boutons restent muets malgré tout, on recâble une
+     fois. Mieux vaut un travail inutile qu'une carte inerte. */
+  setTimeout(() => {
+    try {
+      const bs = [...f.querySelectorAll("button")];
+      const muets = bs.filter(b => !b.onclick && !b.dataset.toggle);
+      if (muets.length > 2 && !f.dataset.recable){
+        f.dataset.recable = "1";
+        logIncident("carte", muets.length + "/" + bs.length + " boutons muets — recâblage",
+          new Error(muets.slice(0,5).map(b => (b.textContent||"").trim().slice(0,14)).join(" · ")));
+        _bindUnForm(p, f);
+      }
+    } catch(e){}
+  }, 350);
+  /* Recherche soins pendant le passage */
+  const srchIn = document.getElementById("soin-srch-"+p.id);
+  const srchRes = document.getElementById("soin-srch-res-"+p.id);
+  if (srchIn && srchRes){
+    srchIn.oninput = () => {
+      const q = srchIn.value.trim().toLowerCase();
+      if (!q){ srchRes.innerHTML=""; return; }
+      const sel = new Set([...f.querySelectorAll(".chip.on[data-s]")].map(c=>c.dataset.s));
+      const hits = getCatalog().filter(n=>n.toLowerCase().includes(q) && !sel.has(n)).slice(0,12);
+      srchRes.innerHTML = hits.map(n=>`<button class="chip" data-srch="${esc(n)}">${esc(n)}${getSoinProtocol(n)?" 📋":""}</button>`).join("");
+      srchRes.querySelectorAll("[data-srch]").forEach(b=>b.onclick=()=>{
+        const name=b.dataset.srch, btn=document.createElement("button");
+        btn.className="chip on"; btn.dataset.s=name; btn.textContent=name;
+        f.querySelector("[data-chips]").insertBefore(btn, f.querySelector("[data-addsoin]"));
+        armerChipSoin(btn, p, f, decorateChip, openSoinComment);
+        /* Si le soin a un protocole, le pré-remplir dans les notes */
+        const proto = getSoinProtocol(name);
+        if (proto){
+          const noteEl = f.querySelector("[data-note]");
+          if (noteEl && !noteEl.value.includes(proto)) noteEl.value += (noteEl.value?"\n":"")+proto;
+        }
+        srchIn.value=""; srchRes.innerHTML="";
+      });
+    };
+  }
+
+  qEl(f, "data-addsoin").onclick = () => {
+    const addBtn = f.querySelector("[data-addsoin]");
+    if (f.querySelector("[data-addsoin-input]")) return; // déjà ouvert
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;gap:4px;align-items:center";
+    wrap.innerHTML = `<input data-addsoin-input placeholder="Nom du soin…" style="width:150px;font-size:13px;padding:6px 8px">
+      <button aria-label="Valider" class="chip" data-addsoin-ok style="font-size:13px">✓</button>`;
+    addBtn.parentNode.insertBefore(wrap, addBtn);
+    const inp = wrap.querySelector("[data-addsoin-input]");
+    inp.focus();
+    const validate = () => {
+      const name = inp.value.trim();
+      wrap.remove();
+      if (!name) return;
+      const btn = document.createElement("button");
+      btn.className = "chip on"; btn.dataset.s = name; btn.textContent = name;
+      f.querySelector("[data-chips]").insertBefore(btn, addBtn);
+      armerChipSoin(btn, p, f, decorateChip, openSoinComment);
+      // Offrir d'ajouter au catalogue global si inconnu
+      if (!getCatalog().includes(name)){
+        setTimeout(async ()=>{
+          if (await askDialog({ ic:"📋", titre:"Ajouter au catalogue des soins ?",
+              sub:"<b>" + esc(name) + "</b> sera proposé ensuite pour d'autres patients.",
+              non:"Non merci", oui:"✓ Ajouter" })){
+            if (!customEntries().some(e=>e.nom===name)){
+              S.catalog.custom.push({ nom:name, cat:"" });
+              save(); toast('"'+name+'" ajouté au catalogue ✓ (catégorie modifiable dans Réglages → Catalogue)');
+            }
+          }
+        }, 80);
+      }
+    };
+    wrap.querySelector("[data-addsoin-ok]").onclick = validate;
+    inp.addEventListener("keydown", e => { if (e.key==="Enter") validate(); });
+  };
+  // Synchronisation pavé TA : sys/dia → champ caché data-c="ta"
+  const taS = f.querySelector("[data-ta-s]"), taD = f.querySelector("[data-ta-d]");
+  const taHid = f.querySelector("[data-c=\'ta\']");
+  /* ⚠️ « 13/77 » mélange cm et mm : on le signale, sans rien corriger —
+     seule l'infirmière sait ce qu'elle a mesuré. */
+  const hintTA = f.querySelector("[data-tahint]");
+  const majHintTA = () => {
+    if (!hintTA) return;
+    const v = (taS && taD && taS.value && taD.value) ? taS.value + "/" + taD.value : "";
+    const ko = !!v && typeof taIncoherente === "function" && taIncoherente(v);
+    hintTA.textContent = ko
+      ? "⚠️ " + v + " mélange cm et mm — " + taS.value + "/" + (num(taD.value) / 10)
+        + " ou " + (num(taS.value) * 10) + "/" + taD.value + " ?"
+      : "";
+    hintTA.style.display = ko ? "block" : "none";
+  };
+  /* Ce qu'il faut pour valider, dit AVANT d'appuyer */
+  const hintV = f.querySelector("[data-needhint]");
+  const btnV  = f.querySelector("[data-save]");
+  const majValiderHint = (insiste) => {
+    if (!hintV) return;
+    const okS = f.querySelectorAll(".chip.on[data-s]").length;
+    const okC = [...f.querySelectorAll("[data-c]")].some(i => (i.value||"").trim());
+    const okN = ((f.querySelector("[data-note]")||{}).value||"").trim();
+    const vide = !okS && !okC && !okN;
+    hintV.textContent = vide ? "Coche un soin, saisis une constante ou écris une transmission pour pouvoir valider." : "";
+    hintV.className = "need-hint" + (vide ? " on" : "") + (vide && insiste ? " fort" : "");
+    if (btnV) btnV.classList.toggle("off", vide);
+    /* ⚠️ Le bouton du haut du déroulé suit le même état, au même instant.
+       S'il promettait une validation que l'app refuse, il deviendrait un
+       piège plutôt qu'un raccourci. */
+    if (typeof _seqMajValid === "function") _seqMajValid();
+  };
+  f._majValiderHint = majValiderHint;
+  /* ══ « TOUCHÉ » : la saisie a-t-elle bougé DEPUIS le dernier
+     enregistrement ? ══
+     ⚠️ C'est la seule question qui distingue un formulaire rempli par une
+     SAISIE NEUVE d'un formulaire rempli par le PASSAGE QU'ON VIENT
+     D'ENREGISTRER. Le déroulé ne regardait que « le formulaire est-il
+     vide », et un patient déjà validé revenait avec ses soins cochés :
+     repasser devant lui avec les flèches créait donc un SECOND PASSAGE.
+
+     ⚠️ ÉCOUTÉ EN PHASE DE CAPTURE, et les boutons du pied de formulaire
+     sont exclus : en phase de bulle, le clic sur « ✓ Valider » arriverait
+     APRÈS que l'enregistrement a remis le drapeau à zéro, et le
+     rallumerait aussitôt. */
+  const marquerTouche = e => {
+    if (e && e.target && e.target.closest && e.target.closest("[data-save],[data-keep]")) return;
+    f._touche = true;
+  };
+  f.addEventListener("click", marquerTouche, true);
+  f.addEventListener("input", marquerTouche, true);
+  /* Tout geste dans le formulaire peut changer la réponse */
+  f.addEventListener("click", () => setTimeout(majValiderHint, 0));
+  f.addEventListener("input", () => majValiderHint());
+  setTimeout(majValiderHint, 0);
+
+  const syncTA = () => {
+    if (taS && taD && taHid) taHid.value = (taS.value && taD.value) ? taS.value + "/" + taD.value : "";
+    majHintTA();
+    if (check) check(); else _saveDraft(f, p.id);
+  };
+  if (taS){ taS.oninput = syncTA; taD.oninput = syncTA; }
+  majHintTA();   // saisie restaurée d'un brouillon
+  const inputs = [...f.querySelectorAll("[data-c]")];
+  // Sauvegarder le brouillon à chaque changement
+  const check = () => {
+    const c = {}; inputs.forEach(i => c[i.dataset.c] = i.value.trim());
+    const al = alertes(c, p.thresholds);
+    inputs.forEach(i => i.classList.toggle("warnf", isBad(i.dataset.c, al)));
+    const line = f.querySelector("[data-al]");
+    if (al.length){ line.style.display="block"; line.textContent="⚠ "+al.join(" · "); } else line.style.display="none";
+    _saveDraft(f, p.id); // sauvegarde brouillon à chaque changement de constante
+  };
+  inputs.forEach(i => i.oninput = check);
+  f.querySelectorAll("[data-evt]").forEach(b => b.onclick = () => {
+    const noteEl = f.querySelector("[data-note]");
+    const tag = "["+b.dataset.evt+"]";
+    noteEl.value = (noteEl.value ? noteEl.value+"\n" : "") + tag+" ";
+    b.classList.toggle("on");
+    toast(b.dataset.evt+" noté ✓");
+  });
+  const noteTA = f.querySelector("[data-note]");
+  if(noteTA) noteTA.addEventListener("input", () => _saveDraft(f, p.id));
+  /* ⚠️ L'ancien micro flottant est retiré : le micro du CLAVIER dicte
+     mieux, et celui-ci occupait la place du bouton d'enregistrement.
+     Pour dicter, l'utilisateur ouvre son clavier sur le champ. */
+
+  /* ── Le vocal du patient ── */
+  { const zone = f.querySelector("[data-pvoice]");
+    if (zone && typeof voicePossible === "function" && voicePossible()){
+      const dessine = () => {
+        const v = (typeof pVoix === "function") ? pVoix(p.id) : null;
+        zone.innerHTML = v
+          ? `<div class="pv-ok">
+               <button class="pv-play" data-pvplay="1" aria-label="Écouter">▶</button>
+               <span class="pv-t">🎤 note vocale — ${voiceFmt(v.dur)}</span>
+               <button class="lien-x" data-pvdel="1" aria-label="Supprimer">✕</button>
+             </div>
+             <p class="small muted" style="margin:4px 0 0">Elle part avec la relève, puis s'efface.</p>`
+          : `<button class="pv-rec" data-pvrec="1">🔴 Enregistrer une note vocale</button>
+             <p class="small muted" style="margin:4px 0 0">Pour une précision plus claire à l'oral. ${voiceFmt(VOICE_MAX_PAT)} au plus.</p>`;
+        const r = zone.querySelector("[data-pvrec]");
+        if (r) r.onclick = async (e) => {
+          e.preventDefault();
+          const rendu = sec => {
+            const reste = Math.max(0, VOICE_MAX_PAT - sec);
+            zone.innerHTML = `<div class="vrec">
+                <button aria-label="Arrêter" class="vstop" data-pvstop="1">⏹</button>
+                <span class="vb"><span class="vt"><i class="vdot"></i> Enregistrement…</span>
+                  <span class="vbar"><i style="width:${Math.min(100, sec / VOICE_MAX_PAT * 100)}%"></i></span></span>
+                <span class="vchrono">${voiceFmt(sec)}</span>
+              </div>
+              <p class="small muted" style="margin:4px 0 0;text-align:right">reste ${voiceFmt(reste)}</p>`;
+            const st = zone.querySelector("[data-pvstop]");
+            if (st) st.onclick = ev => { ev.preventDefault(); voiceStop(); };
+          };
+          rendu(0);
+          await voiceStart(rendu, async note => {
+            if (note) await pVoixGarder(p.id, note);
+            dessine();
+          }, VOICE_MAX_PAT);
+        };
+        const d = zone.querySelector("[data-pvdel]");
+        if (d) d.onclick = async (e) => { e.preventDefault(); await pVoixEffacer(p.id); dessine(); };
+        const pl = zone.querySelector("[data-pvplay]");
+        if (pl) pl.onclick = async (e) => {
+          e.preventDefault();
+          const u = await voiceUrl(v.id);
+          if (!u){ toast("Note vocale introuvable", "danger"); return; }
+          const a2 = new Audio(u); a2.play().catch(() => toast("Lecture impossible"));
+        };
+      };
+      dessine();
+    } else if (zone){
+      zone.innerHTML = `<p class="small muted">Enregistrement vocal indisponible sur cet appareil.</p>`;
+    } }
+  // ── Tags de priorité ──
+  /* Selles : un seul choix actif. Retaper le même bouton l'efface —
+     « 0 » reste une valeur, l'absence de bouton actif signifie non renseigné. */
+  f.querySelectorAll(".selb").forEach(b => b.onclick = () => {
+    const dejaActif = b.classList.contains("on");
+    f.querySelectorAll(".selb").forEach(x => x.classList.remove("on"));
+    if (!dejaActif) b.classList.add("on");
+    _saveDraft(f, p.id);
+  });
+
+  f.querySelectorAll("[data-tag]").forEach(b => {
+    const k = b.dataset.tag;
+    const T = tagDef(k) || {};
+    /* Appui long : commenter la pastille — même geste que pour un soin.
+       « Matériel à apporter » ne disait pas QUEL matériel ; le commentaire
+       part maintenant dans la relève avec la pastille. */
+    let _lt = null;
+    const ask = async () => {
+      if (!(p.tags||[]).includes(k)) return;   // rien à commenter si éteinte
+      p.tagMeta = p.tagMeta || {};
+      const m = p.tagMeta[k] || {};
+      const v = await askText(T.lbl, {
+        ic: T.ic, sub:"Précision (facultatif)", val:m.note || "",
+        ph: k === "medecin" ? "Dr Blanc prévenu de la TA" : "ce qu'il faut savoir",
+        aide: k === "medecin" ? "Ex. : rappelle demain, ordonnance à récupérer…" : "",
+        oui:"✓ Noter" });
+      if (v === false || v === null) return;
+      const t = v.trim();
+      if (t) p.tagMeta[k] = { ...m, note:t }; else if (m.note) delete p.tagMeta[k].note;
+      save(); render();
+    };
+    b.addEventListener("touchstart", () => { _lt = setTimeout(ask, 550); }, { passive:true });
+    ["touchend","touchmove","touchcancel"].forEach(ev =>
+      b.addEventListener(ev, () => clearTimeout(_lt), { passive:true }));
+    b.addEventListener("contextmenu", e => { e.preventDefault(); ask(); });
+
+    b.onclick = () => {
+    p.tags = p.tags || [];
+    const i = p.tags.indexOf(k);
+    if (i >= 0) p.tags.splice(i,1); else p.tags.push(k);
+    // Une pastille événementielle retient SA date d'activation
+    if (i < 0 && T.kind === "evt"){
+      p.tagMeta = p.tagMeta || {};
+      p.tagMeta[k] = { ...(p.tagMeta[k]||{}), at: workDate() };
+    }
+    if (i >= 0 && p.tagMeta) delete p.tagMeta[k];   // éteinte = on oublie tout
+    b.classList.toggle("on", i < 0);
+    save(); render();
+    };
+  });
+  // ── Phrases types : ouvrir le catalogue ──
+  const phBtn = f.querySelector("[data-phrasepick]");
+  if (phBtn) phBtn.onclick = () => sheetPhrasePicker(p.id);
+  // ── Mode DARD : composer la note depuis les 4 champs ──
+  const dardBox = f.querySelector("[data-dardbox]");
+  const dardToggle = f.querySelector("[data-dard-toggle]");
+  const noteField = f.querySelector("[data-note]");
+  const composeDard = () => {
+    const g = k => (f.querySelector(`[data-dard="${k}"]`)?.value||"").trim();
+    const parts = [];
+    if (g("D")) parts.push("D : " + g("D"));
+    if (g("A")) parts.push("A : " + g("A"));
+    if (g("R")) parts.push("R : " + g("R"));
+    if (g("V")) parts.push("Devenir : " + g("V"));
+    noteField.value = parts.join("\n");
+    noteField.dispatchEvent(new Event("input", { bubbles:true }));
+  };
+  if (dardToggle) dardToggle.onclick = () => {
+    const on = dardBox.style.display === "none";
+    f._dardOn = on;   // ce passage sera marqué DAR dans la relève
+    dardBox.style.display = on ? "flex" : "none";
+    dardToggle.classList.toggle("on", on);
+    noteField.readOnly = on;
+    noteField.placeholder = on ? "Composée automatiquement depuis les champs DARD ↑" : "Événements, consignes… (la dictée ajoute au texte)";
+    if (on) composeDard();
+    else noteField.readOnly = false;
+  };
+  f.querySelectorAll("[data-dard]").forEach(inp => inp.addEventListener("input", composeDard));
+  qEl(f, "data-cancel").onclick = async () => {
+    // Ne pas jeter silencieusement une saisie en cours
+    const soinsOn = f.querySelectorAll(".chip[data-s].on").length;
+    const noteTxt = (f.querySelector("[data-note]")?.value||"").trim();
+    const cstTxt  = [...f.querySelectorAll("[data-c]")].some(i => (i.value||"").trim());
+    /* ⚠️ Une saisie gardée pour plus tard survivait à l'abandon : l'étiquette
+       « saisie en attente » restait, et seule la validation l'effaçait. */
+    const garde = !!(S.drafts||{})[p.id];
+    if ((soinsOn || noteTxt || cstTxt || garde) &&
+        !await askDialog({ ton:"danger", ic:"↩️", titre:"Abandonner cette saisie ?",
+          warn: garde ? "La saisie gardée pour plus tard sera effacée, et l'étiquette « saisie en attente » disparaîtra."
+                      : "Les soins cochés, les constantes et la transmission seront perdus.",
+          oui:"Abandonner" })) return;
+    if (garde){ oublierBrouillon(p.id); save(); }
+    _formDraft=null; _soinNotes={}; _soinNotesRel={}; _curSlot=null; openId=null;
+    /* ⚠️ Dans le déroulé, le formulaire n'est PAS une carte : render()
+       redessine la liste, qui est masquée — l'écran séquentiel restait
+       affiché avec son texte. Il faut le redessiner lui. */
+    if (typeof seqActive !== "undefined" && seqActive && typeof renderSeq === "function") renderSeq();
+    else render();
+  };
+
+  /* 💾 Enregistrer sans valider — la saisie est conservée durablement
+     (elle survit à la fermeture de l'app) mais le patient reste « à voir ». */
+  const keepBtn = f.querySelector("[data-keep]");
+  if (keepBtn) keepBtn.onclick = () => {
+    _saveDraft(f, p.id);
+    if (!_formDraft){ toast("Rien à enregistrer"); return; }
+    S.drafts = S.drafts || {};
+    S.drafts[p.id] = { ..._formDraft, at: Date.now() };
+    save();
+    _curSlot = null; openId = null; render();
+    toast("Saisie enregistrée 💾 — le passage n'est pas encore validé");
+  };
+  // ① Case « inclure les constantes dans la relève »
+  const constRelBtn = f.querySelector("[data-constrel]");
+  if (constRelBtn){
+    if (_formDraft && _formDraft.pid === p.id && _formDraft.constRel) constRelBtn.classList.add("on");
+    constRelBtn.onclick = () => { constRelBtn.classList.toggle("on"); _saveDraft(f, p.id); };
+  }
+
+  // Créneau matin/soir
+  if (slotsOn()){
+    if (!_curSlot) _curSlot = defaultSlot();
+    f.querySelectorAll("[data-slot]").forEach(b => b.onclick = () => {
+      _curSlot = b.dataset.slot;
+      f.querySelectorAll("[data-slot]").forEach(x => x.classList.toggle("on", x===b));
+      const hint = f.querySelector("[data-slothint]");
+      if (hint) hint.textContent = "Passage du " + SLOT_LBL[_curSlot].lbl.toLowerCase() + " — ce que tu coches lui est attribué.";
+    });
+  }
+  // Validation d'un passage — renvoie true si un passage a été enregistré
+  const commitVisit = async (silent) => {
+    const soins = [...f.querySelectorAll(".chip.on[data-s]")].map(c=>c.dataset.s);
+    const consts = {}; inputs.forEach(i => { if(i.value.trim()) consts[i.dataset.c]=i.value.trim(); });
+    const note = f.querySelector("[data-note]").value.trim();
+    /* ⚠️ Refus silencieux auparavant : le bref « Rien à enregistrer »
+       était recouvert par « ✓ Sauvegardé localement » (enregistrement
+       de fond). L'utilisateur croyait le passage validé alors qu'aucun
+       n'était créé — et l'étiquette « saisie gardée » restait. */
+    if (!soins.length && !Object.keys(consts).length && !note){
+      if (!silent){
+        majValiderHint(true);
+        await askDialog({ ic:"☝️", titre:"Il manque une saisie",
+          sub:"Pour valider un passage, il faut <b>au moins</b> :",
+          warn:"• un soin coché dans le plan<br>• ou une constante mesurée<br>• ou une transmission écrite",
+          oui:"J'ai compris", seul:true });
+      }
+      return false;
+    }
+    const sNotes = {};
+    soins.forEach(sn => { if (_soinNotes[sn]) sNotes[sn] = _soinNotes[sn]; });
+    const constRel = !!f.querySelector("[data-constrel].on");
+    const dardOn = !!f._dardOn;
+    /* Doublon : un passage existe déjà aujourd'hui sur le même créneau.
+       Sans ce contrôle, valider depuis la carte puis depuis le déroulé
+       créait deux passages le même jour. */
+    const _slot = slotsOn() ? (_curSlot || defaultSlot()) : null;
+    /* Passage rechargé pour modification : on le met à jour directement,
+       sans redemander confirmation — l'intention est explicite. */
+    const editUid = _formDraft && _formDraft.pid === p.id ? _formDraft._editUid : null;
+    if (editUid){
+      const ev = (p.visits||[]).find(v => v.uid === editUid);
+      if (ev){
+        ev.soins = soins; ev.consts = consts; ev.note = note;
+        ev.soinNotes = sNotes; ev.constRel = constRel; ev.dar = dardOn;
+        if (typeof logChange==="function") logChange("update","visit", p.id+"|"+ev.uid, ev);
+        _soinNotes = {}; _soinNotesRel = {}; _soinNotesPlaie = {}; _formDraft = null;
+        oublierBrouillon(p.id);   // saisie gardée consommée
+        f._touche = false;        // ce qui est à l'écran est désormais enregistré
+        if (!silent) toast("Passage modifié ✓");
+        return true;
+      }
+    }
+
+    /* ⚠️ LA QUESTION NE SE POSE PLUS QUAND LE 2ᵉ PASSAGE EST DÉCLARÉ.
+       « Compléter le passage existant, ou en garder deux ? » a du sens
+       pour un doublon accidentel. Chez un patient à passage
+       supplémentaire, la réponse est connue d'avance — et la boîte
+       serait posée TOUS LES MATINS, jusqu'à ce qu'on réponde au hasard.
+       On ne la pose donc que tant qu'il reste des rangs à remplir au
+       delà de ce qui est prévu. */
+    const _prevus = occurrencesDe(p, S.curTour, slotsOn() ? _slot : null).length;
+    const _dejaCreneau = (p.visits||[]).filter(v => v.date === workDate() &&
+                (!slotsOn() || (v.slot||defaultSlot()) === _slot)).length;
+    const dbl = (_dejaCreneau >= _prevus)
+      ? (p.visits||[]).find(v => v.date === workDate() &&
+                (!slotsOn() || (v.slot||defaultSlot()) === _slot))
+      : null;
+    if (dbl && !silent){
+      const sl = _slot && SLOT_LBL[_slot] ? " " + SLOT_LBL[_slot].ic + " " + SLOT_LBL[_slot].lbl.toLowerCase() : "";
+      /* Avant : « OK = compléter / Annuler = garder séparé » — deux actions
+         déguisées en oui/non. Chacune porte maintenant son nom. */
+      const rep = "fusion" === await askChoice({
+        ic:"🔁", titre:"Passage déjà enregistré",
+        sub:`${esc(p.prenom)} a déjà un passage aujourd'hui (${esc(sl.trim())} ${esc(dbl.at||"")}).`,
+        options:[ { ic:"🔗", lbl:"Compléter ce passage", val:"fusion" },
+                  { ic:"➕", lbl:"Garder les deux séparés", val:"separe" } ] });
+      if (rep){
+        // Fusion dans le passage existant
+        dbl.soins = [...new Set([...(dbl.soins||[]), ...soins])];
+        dbl.consts = { ...(dbl.consts||{}), ...consts };
+        /* ⚠️ Sans ce contrôle, revalider un passage dont la transmission
+           était déjà à l'écran la recollait à elle-même : le même texte
+           deux fois dans la relève. */
+        if (note && !(dbl.note||"").split("\n").some(l => l.trim() === note.trim()))
+          dbl.note = dbl.note ? (dbl.note + "\n" + note) : note;
+        if (Object.keys(sNotes).length) dbl.soinNotes = { ...(dbl.soinNotes||{}), ...sNotes };
+        if (constRel) dbl.constRel = true;
+        if (dardOn) dbl.dar = true;
+        dbl.at = nowHM();
+        if (typeof logChange==="function") logChange("update","visit", p.id+"|"+dbl.uid, dbl);
+        _soinNotes = {}; _soinNotesRel = {}; _soinNotesPlaie = {}; _formDraft = null;
+        oublierBrouillon(p.id);   // saisie gardée consommée
+        f._touche = false;        // ce qui est à l'écran est désormais enregistré
+        return true;
+      }
+    }
+
+    const _v = { uid:uid(), date:workDate(), at:nowHM(), soins, consts, note,
+      ...(slotsOn() ? { slot:(_curSlot||defaultSlot()) } : {}),
+      ...(Object.keys(sNotes).length ? { soinNotes:sNotes } : {}),
+      /* Quels commentaires l'utilisateur a choisi de faire figurer
+         dans la relève — le reste ne vit que dans l'historique. */
+      ...(Object.keys(_soinNotesRel).length ? { soinNotesRel:{..._soinNotesRel} } : {}),
+      ...(Object.keys(_soinNotesPlaie).length ? { soinNotesPlaie:{..._soinNotesPlaie} } : {}),
+      ...(constRel ? { constRel:true } : {}),      // constantes à faire figurer dans la relève
+      ...(dardOn ? { dar:true } : {}) };           // passage structuré DAR
+    p.visits.push(_v);
+    _lastVisitUid = { pid:p.id, uid:_v.uid };   // pour l'annulation immédiate
+    if (typeof logChange==="function") logChange("add","visit", p.id+"|"+_v.uid, _v);
+    _soinNotes = {}; _soinNotesRel = {}; _soinNotesPlaie = {}; _formDraft = null;
+    oublierBrouillon(p.id);   // saisie gardée consommée
+    f._touche = false;        // ce qui est à l'écran est désormais enregistré
+    return true;
+  };
+  f._commitVisit = commitVisit; // exposé pour le mode séquentiel
+  /* ⚠️ commitVisit est ASYNCHRONE : sans `await`, le test portait sur la
+     promesse — toujours vraie. La carte se fermait et le déroulé
+     annonçait « enregistré ✓ » alors qu'AUCUN passage n'était créé.
+     C'est ce qui laissait l'étiquette « saisie gardée » en place. */
+  qEl(f, "data-save").onclick = async () => {
+    if (!await commitVisit(false)) return;
+    try { vibrer("succes"); } catch(e){}          // v1.0.66 : retour haptique
+    _curSlot = null;
+    openId = null; save(true);
+    /* Lien d'annulation : rattrape une validation partie trop vite. */
+    const uv = _lastVisitUid;
+    if (uv){
+      toast("Passage enregistré ✓", { label:"Annuler", ms:6000, action:() => {
+        const pp = getP(uv.pid);
+        if (!pp) return;
+        const i = (pp.visits||[]).findIndex(v => v.uid === uv.uid);
+        if (i < 0){ toast("Ce passage n'existe plus"); return; }
+        pp.visits.splice(i, 1);
+        if (typeof logChange==="function") logChange("delete","visit", uv.pid+"|"+uv.uid, {});
+        _lastVisitUid = null; save(true); render();
+        toast("Passage annulé ↩︎");
+      }});
+    } else toast("Passage enregistré ✓");
+    render();
+  };
+  qEl(f, "data-docs").onclick = () => sheetDocs(p.id);
+  qEl(f, "data-bilans").onclick = () => sheetBilans(p.id);
+  qEl(f, "data-raps").onclick = () => sheetRappels(p.id);
+  qEl(f, "data-hist").onclick = () => sheetHist(p.id);
+  qEl(f, "data-clone").onclick = () => {
+    /* Reprendre le passage précédent DU MÊME CRÉNEAU.
+       ⚠️ Avant : le dernier passage tout court — le matin, J-1 ressortait
+       le soir de la veille, avec pilulier du soir et coucher.
+       Si le créneau n'a pas de passage hier, on remonte au dernier du
+       même créneau : le plan du matin reste le plan du matin. */
+    const lastV = (() => {
+      const tous = (p.visits||[]).slice()
+        .sort((a,b) => (b.date+b.at).localeCompare(a.date+a.at));
+      // Même détermination que le formulaire : choix explicite, sinon l'heure
+      const cr = _curSlot || (typeof activeSlot === "function" ? activeSlot() : null)
+                 || (typeof defaultSlot === "function" ? defaultSlot() : null);
+      if (cr){
+        const memeCreneau = tous.filter(v => (v.slot || null) === cr);
+        if (memeCreneau.length) return memeCreneau[0];
+      }
+      return tous[0];      // aucun passage dans ce créneau : le dernier connu
+    })();
+    const plan = p.plan||[];
+    const soins = lastV ? lastV.soins : plan;
+    // Cocher les soins — décorer après chaque changement d'état, sinon
+    // le crayon ne suit pas (il n'apparaît que sur un soin coché)
+    f.querySelectorAll(".chip[data-s]").forEach(c=>{ c.classList.remove("on"); decorateChip(c); });
+    soins.forEach(s => {
+      let c = f.querySelector(`.chip[data-s="${CSS.escape(s)}"]`);
+      if (!c){ c=document.createElement("button"); c.className="chip on"; c.dataset.s=s; c.textContent=s;
+        f.querySelector("[data-chips]").insertBefore(c, f.querySelector("[data-addsoin]"));
+        armerChipSoin(c, p, f, decorateChip, openSoinComment); }   // crayon, appui long, commentaire
+      // ⚠️ Un soin DÉJÀ présent doit être redécoré : le crayon n'apparaît
+      // que sur un soin coché, et cocher seul ne réécrit pas le contenu.
+      else { c.classList.add("on"); decorateChip(c); }
+    });
+    // Pré-remplir la note
+    const noteEl = f.querySelector("[data-note]");
+    noteEl.value = "Soins conformes au plan habituel.";
+    toast("Pré-rempli sur le dernier passage 🔁");
+  };
+  { const e = f.querySelector("[data-graph]"); if (e) e.onclick = () => sheetGraphConstantes(p.id); }
+
+  /* Suivi de plaie — dans la carte, entre constantes et transmission */
+  f.querySelectorAll("[data-plnew]").forEach(b => b.onclick = e => {
+    e.stopPropagation(); plaieNouvelle(p.id);
+  });
+  f.querySelectorAll("[data-plopen]").forEach(b => b.onclick = e => {
+    if (e.target.closest("[data-plphoto]")) return;
+    sheetPlaies(p.id);
+  });
+  f.querySelectorAll("[data-plphoto]").forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+      /* ⚠️ Avant : appareil photo imposé. Une plaie est souvent
+         photographiée pendant le soin, puis importée après. */
+      const c = await askChoice({ ic:"📷", titre:"Photo de la plaie",
+        options:[ { ic:"📷", lbl:"Prendre une photo",       val:"cam" },
+                  { ic:"🖼", lbl:"Choisir dans la galerie", val:"gal" } ] });
+      if (!c) return;
+      _plaieEnCours = b.dataset.plphoto; docTargetPid = p.id;
+      const el = document.getElementById(c === "cam" ? "camerafile" : "galleryfile");
+      if (el) el.click();
+  });
+  try { brancherTuilesSaisie(f); } catch(e){ console.error("tuiles:", e); }
+  const gpsBtn = f.querySelector("[data-gps]");
+  if (gpsBtn) gpsBtn.onclick = () => {
+    /* ⚠️ `p.address` SEUL : c'était le défaut. Ce bouton-ci ne prenait
+       que la ligne de rue et jetait le code postal et la ville, alors
+       que la pastille 📍 des cartes assemblait déjà les trois par
+       `adresseComplete`. Deux boutons pour le même geste, un seul juste.
+       Conséquence à l'usage : il fallait recopier la ville dans la ligne
+       du dessus pour que le GPS trouve — et la répétition se retrouvait
+       alors partout où l'app réassemble l'adresse. */
+    window.open(`geo:0,0?q=${encodeURIComponent(adresseComplete(p) || p.address || "")}`, "_system");
+  };
+  const annBtn = f.querySelector("[data-annuaire]");
+  if (annBtn) annBtn.onclick = () => sheetAnnuaire(p);
+  { const e = f.querySelector("[data-edit]"); if (e) e.onclick = () => sheetPatient(p); }
+}
+
+/* ---------- Feuilles génériques ---------- */
+
+/* Poser les gestes d'un soin : cocher, commenter, menu d'appui long.
+   Appelée à la construction du formulaire ET à chaque soin ajouté
+   ensuite — par J-1, par la recherche, par « ＋ autre… ». */
+/* ⚠️ `qEl(f, "data-x").onclick = …` lève une TypeError quand
+   l'élément n'existe pas, et TOUT le câblage qui suit est perdu : Docs,
+   Bilans, J-1, Fiche… tous les boutons de la carte deviennent muets.
+   `q(f,"data-x")` renvoie un objet inerte plutôt que null. */
+const _INERTE = new Proxy({}, { get:()=>()=>{}, set:()=>true });
+function qEl(f, attr){
+  try { return f.querySelector("[" + attr + "]") || _INERTE; }
+  catch(e){ return _INERTE; }
+}
+
+function armerChipSoin(c, p, f, deco, ouvrirNote){
+  /* ⚠️ decorateChip et openSoinComment sont LOCALES au formulaire :
+     elles dépendent du patient courant. On les reçoit en paramètre
+     plutôt que de les chercher globalement. */
+  deco(c);
+  let lpTimer = null, lpFired = false;
+  c.onclick = (e) => {
+    if (lpFired){ lpFired = false; return; }   // ne pas basculer après un appui long
+    // Tap sur le crayon ou la bulle → ouvrir le commentaire
+    if (e.target.closest("span") && (c.classList.contains("on") || _soinNotes[c.dataset.s])){
+      ouvrirNote(c); return;
+    }
+    c.classList.toggle("on"); deco(c); _saveDraft(f, p.id);
+  };
+  c.addEventListener("pointerdown", () => {
+    lpFired = false;
+    lpTimer = setTimeout(() => { lpFired = true; menuSoin(c, p, f); }, 550);
+  });
+  ["pointerup","pointerleave","pointercancel"].forEach(ev =>
+    c.addEventListener(ev, () => clearTimeout(lpTimer)));
+}
+
+/* ============================================================
+   MENU D'UN SOIN — appui long
+   ─────────────────────────────────────────────────────────
+   L'appui long ne faisait qu'ouvrir le commentaire. Un soin
+   ajouté à la volée n'avait donc AUCUN moyen d'être retiré :
+   une erreur de frappe restait là jusqu'à la fermeture.
+
+   Le menu s'adapte au chip : un soin du plan ne se retire pas
+   (on le décoche), un soin ajouté oui.
+============================================================ */
+async function menuSoin(chip, p, f){
+  const nom     = chip.dataset.s;
+  const duPlan  = (p.plan || []).includes(nom);
+  const aNote   = !!(_soinNotes && _soinNotes[nom]);
+
+  const options = [{ ic:"💬", lbl: aNote ? "Modifier le commentaire" : "Ajouter un commentaire", val:"note" }];
+  if (aNote)   options.push({ ic:"🧹", lbl:"Effacer le commentaire", val:"clr" });
+  if (!duPlan) options.push({ ic:"🗑", lbl:"Retirer de ce passage",  val:"del" });
+
+  // Un seul choix possible : inutile d'ouvrir un menu
+  if (options.length === 1){ ouvrirNoteSoin(chip, p, f); return; }
+
+  const c = await askChoice({
+    ic:"💉", titre: nom,
+    sub: duPlan ? "Soin du plan de soins" : "Ajouté à ce passage",
+    options });
+  if (!c) return;
+
+  if (c === "note"){ ouvrirNoteSoin(chip, p, f); return; }
+  if (c === "clr"){
+    delete _soinNotes[nom];
+    decorerSoin(chip, p); _saveDraft(f, p.id);
+    toast("Commentaire effacé");
+    return;
+  }
+  if (c === "del"){
+    delete _soinNotes[nom];
+    chip.remove();
+    _saveDraft(f, p.id);
+    toast(`« ${nom} » retiré de ce passage`);
+  }
+}
+
+/* ============================================================
+   CE QUE CONTIENT UNE SAISIE GARDÉE
+   ─────────────────────────────────────────────────────────
+   ⚠️ L'étiquette « saisie gardée » ne disait pas ce qui attendait,
+   ni d'où elle venait. On montre tout, et on donne la sortie :
+   la reprendre dans la carte, ou l'effacer.
+============================================================ */
+function sheetBrouillon(pid){
+  const p = getP(pid);
+  const d = (S.drafts||{})[pid];
+  if (!p || !d){ toast("Plus rien en attente."); render(); return; }
+
+  const quand = d.at ? new Date(d.at) : null;
+  const dateTxt = quand ? fmtFR(quand.toISOString().slice(0,10)) + " à "
+                        + String(quand.getHours()).padStart(2,"0") + ":" + String(quand.getMinutes()).padStart(2,"0")
+                        : "date inconnue";
+  const soins = d.soins || [];
+  const cst = Object.entries(d.consts || {}).filter(([,v]) => String(v||"").trim());
+  const ta = (d.taS && d.taD) ? d.taS + "/" + d.taD : "";
+  const notes = Object.entries(d.soinNotes || {}).filter(([,v]) => String(v||"").trim());
+  const vus = (p.visits||[]).filter(v => v.date === workDate());
+
+  const ligne = (ic, lbl, val) => val
+    ? `<div class="br-l"><span>${ic}</span><div><b>${esc(lbl)}</b><br>${esc(val)}</div></div>` : "";
+
+  /* ⚠️ Feuille très courte auparavant : posée en bas de l'écran, elle
+     semblait s'ouvrir « à moitié ». Une hauteur minimale la rend lisible. */
+  openSheet(`
+    ${navHeader("Retour", true)}
+    <div style="min-height:52vh">
+    <h3>💾 Saisie gardée</h3>
+    <p class="small muted" style="margin-bottom:12px">
+      ${esc(p.prenom)} ${esc(p.nom.replace("Demo-","").toUpperCase())} — mise de côté le <b>${esc(dateTxt)}</b>.
+      Elle attend d'être validée ou effacée : elle ne figure dans <b>aucune</b> relève.</p>
+
+    ${vus.length ? `<div class="tip" style="margin-bottom:12px">Un passage a déjà été validé aujourd'hui${
+      vus[0].at ? " à " + esc(vus[0].at) : ""}. Cette saisie est <b>en plus</b> — sans doute mise de côté avant, puis oubliée.</div>` : ""}
+
+    <div class="br-box">
+      ${ligne("🧰", "Soins cochés", soins.join(" · "))}
+      ${ligne("🩸", "Tension", ta)}
+      ${cst.length ? ligne("📊", "Constantes", cst.filter(([k]) => k !== "ta").map(([k,v]) => k + " " + v).join(" · ")) : ""}
+      ${ligne("📝", "Transmission", d.note)}
+      ${notes.map(([k,v]) => ligne("💬", k, v)).join("")}
+      ${!soins.length && !cst.length && !ta && !(d.note||"").trim() && !notes.length
+        ? `<p class="small muted" style="margin:0">Elle est <b>vide</b> — rien n'avait été saisi. Tu peux l'effacer sans risque.</p>` : ""}
+    </div>
+
+    <div class="rowb" style="margin-top:14px;gap:8px">
+      <button class="btn btn-ghost" id="br-del" style="flex:1;color:var(--danger)">🗑 Effacer</button>
+      <button class="btn btn-primary" id="br-go" style="flex:1.4">↩️ Reprendre dans la carte</button>
+    </div>
+    <p class="small muted" style="margin-top:9px">« Reprendre » rouvre la carte avec cette saisie : tu complètes puis <b>✓ Valider le passage</b>, ce qui la fait disparaître.</p>
+    </div>`);
+  bindNav();
+  { const b = $("#br-del"); if (b) b.onclick = async () => {
+      if (!await askDialog({ ton:"danger", ic:"🗑", titre:"Effacer cette saisie ?",
+        warn:"Les soins cochés, les constantes et la transmission notés ici seront perdus.", oui:"🗑 Effacer" })) return;
+      oublierBrouillon(pid); save(true); closeSheet(); render(); toast("Saisie effacée"); }; }
+  { const b = $("#br-go"); if (b) b.onclick = () => { closeSheet(); openId = pid; render();
+      setTimeout(() => { const c = document.querySelector(`.pcard[data-id="${pid}"]`); if (c && c.scrollIntoView) c.scrollIntoView({ block:"center", behavior:"smooth" }); }, 200); }; }
+}
